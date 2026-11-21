@@ -13,7 +13,6 @@ describe('spineUtils', () => {
   it('hashString handles -2147483648 boundary safely', () => {
     const val = hashString('test');
     assert.ok(val >= 0);
-    // Boundary test for hashString
     assert.strictEqual(typeof hashString('any string'), 'number');
   });
 
@@ -36,13 +35,9 @@ describe('spineUtils', () => {
   });
 
   it('mapToSoftPalette selects rich, muted bookstore shades within family', () => {
-    // Light red -> Crimson Matte
     assert.strictEqual(mapToSoftPalette('#F29B9B'), '#8F3835');
-    // Light pink -> Dusty Rose
     assert.strictEqual(mapToSoftPalette('#F0B4C7'), '#B86878');
-    // Light green -> Forest
     assert.strictEqual(mapToSoftPalette('#A6D49B'), '#477A6A');
-    // Light blue -> Navy
     assert.strictEqual(mapToSoftPalette('#8BC9E8'), '#405D78');
   });
 
@@ -53,11 +48,10 @@ describe('spineUtils', () => {
       author: 'Author',
       category: ['Manga'],
       coverUrl: '',
-      volume: 15, // Read 15 volumes
+      volume: 15,
     };
 
     const owned = getBookOwnedVolumes(bookWithReadProgressOnly);
-    // Should NOT assume 15 volumes owned
     assert.deepStrictEqual(owned, [1]);
   });
 });
