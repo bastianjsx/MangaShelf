@@ -14,6 +14,8 @@ export interface Book {
   spineImageUrl?: string;
   releaseDate?: string;
   createdAt?: string;
+  updatedAt?: string;
+  lastSyncedAt?: string;
   description?: string;
   volume?: number;
   volumesOwned?: number;

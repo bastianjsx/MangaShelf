@@ -1,17 +1,34 @@
 export const ANILIST_GRAPHQL_ENDPOINT = 'https://graphql.anilist.co';
 
+export interface GraphQLErrorDetail {
+  message: string;
+  status?: number;
+  locations?: { line: number; column: number }[];
+  fields?: string[];
+  [key: string]: unknown;
+}
+
 export interface GraphQLResponse<T> {
   data?: T;
-  errors?: { message: string; status?: number }[];
+  errors?: GraphQLErrorDetail[];
 }
 
 export class AniListError extends Error {
   status?: number;
+  graphQLErrors?: GraphQLErrorDetail[];
+  responseBody?: unknown;
 
-  constructor(message: string, status?: number) {
+  constructor(
+    message: string,
+    status?: number,
+    graphQLErrors?: GraphQLErrorDetail[],
+    responseBody?: unknown
+  ) {
     super(message);
     this.name = 'AniListError';
     this.status = status;
+    this.graphQLErrors = graphQLErrors;
+    this.responseBody = responseBody;
   }
 }
 
@@ -84,15 +101,17 @@ export async function requestAniListGraphQL<T>(
   try {
     json = (await res.json()) as GraphQLResponse<T>;
   } catch {
-    throw new AniListError('Failed to parse AniList response as JSON.', res.status);
+    throw new AniListError(`Failed to parse AniList response as JSON: ${res.statusText}`, res.status);
   }
 
   if (json.errors && json.errors.length > 0) {
-    throw new AniListError(json.errors[0]?.message || 'GraphQL error occurred.');
+    const primaryMessage = json.errors.map((e) => e.message).join('; ') || 'GraphQL error occurred.';
+    const primaryStatus = json.errors[0]?.status || res.status;
+    throw new AniListError(primaryMessage, primaryStatus, json.errors, json);
   }
 
   if (!json.data) {
-    throw new AniListError('No data received from AniList GraphQL.');
+    throw new AniListError('No data received from AniList GraphQL.', res.status, undefined, json);
   }
 
   return json.data;

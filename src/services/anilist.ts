@@ -49,7 +49,7 @@ export function formatAniListDate(date?: { year?: number; month?: number; day?: 
   return String(date.year);
 }
 
-interface AniListMedia {
+export interface AniListMedia {
   id: number;
   title: {
     english?: string;

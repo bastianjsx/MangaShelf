@@ -56,7 +56,14 @@ export const BookSpine = memo(function BookSpine({
     return (
       <article
         role="button"
+        tabIndex={0}
         onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelectBook?.(book);
+          }
+        }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 transition-transform duration-200 ease-out hover:-translate-y-2 hover:z-30 touch-manipulation"
@@ -85,7 +92,14 @@ export const BookSpine = memo(function BookSpine({
   return (
     <article
       role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelectBook?.(book);
+        }
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 transition-all duration-200 ease-out hover:-translate-y-2 hover:scale-[1.02] hover:z-30 touch-manipulation"

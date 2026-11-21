@@ -80,11 +80,14 @@ export function BookDetailModal({
     onUpdateProgress?.(book.id, { chapter: val });
   };
 
+  const hasUnknownTotalVolumes = !book.totalVolumes || book.totalVolumes <= 0;
+
   const totalAvailableVolumes = useMemo(() => {
     if (typeof book.totalVolumes === 'number' && book.totalVolumes > 0) {
       return Math.max(book.totalVolumes, ...currentOwnedList, ...currentReadList);
     }
-    return Math.max(1, ...currentOwnedList, ...currentReadList, book.volume || 1);
+    const highestOwnedOrRead = Math.max(0, ...currentOwnedList, ...currentReadList, book.volume || 0);
+    return Math.max(10, Math.ceil(highestOwnedOrRead / 10) * 10);
   }, [book.totalVolumes, currentOwnedList, currentReadList, book.volume]);
 
   const ownedPercent = useMemo(
@@ -472,6 +475,7 @@ export function BookDetailModal({
           initialOwnedVolumes={currentOwnedList}
           initialReadVolumes={currentReadList}
           totalAvailableVolumes={totalAvailableVolumes}
+          hasUnknownTotalVolumes={hasUnknownTotalVolumes}
           onSave={handleSaveVolumePicker}
         />
       )}

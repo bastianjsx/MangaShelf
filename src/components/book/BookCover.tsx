@@ -95,6 +95,8 @@ export const BookCover = memo(function BookCover({
   return (
     <article
       role="button"
+      tabIndex={0}
+      aria-label={`${book.title} (${volLabel})`}
       draggable={Boolean(onReorderBooks)}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -102,6 +104,12 @@ export const BookCover = memo(function BookCover({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={handleClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelectBook?.(book);
+        }
+      }}
       onMouseEnter={(e) => {
         if (!isDragging) {
           onHoverBook?.(book, volumeNumber, e.currentTarget.getBoundingClientRect(), titleIndex);

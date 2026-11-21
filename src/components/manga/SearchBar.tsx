@@ -4,7 +4,7 @@ import { searchAniList } from '../../services/anilist';
 import { useDismiss } from '../../hooks/useDismiss';
 
 interface SearchBarProps {
-  onAddBook: (book: Book) => void;
+  onAddBook: (book: Book) => void | Promise<boolean>;
   existingBookIds: Set<string>;
 }
 
@@ -14,6 +14,7 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const handleClose = useCallback(() => setIsOpen(false), []);
 
@@ -52,8 +53,18 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
     };
   }, [query]);
 
-  const handleAdd = (book: Book) => {
-    onAddBook(book);
+  const handleAdd = async (book: Book) => {
+    if (addingIds.has(book.id)) return;
+    setAddingIds((prev) => new Set(prev).add(book.id));
+    try {
+      await onAddBook(book);
+    } finally {
+      setAddingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(book.id);
+        return next;
+      });
+    }
   };
 
   const handleClear = () => {
@@ -87,14 +98,11 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
           onChange={(e) => {
             const val = e.target.value;
             setQuery(val);
-            const trimmed = val.trim();
-            if (trimmed.length < 2) {
+            if (val.trim().length < 2) {
               setResults([]);
               setSearched(false);
               setLoading(false);
-              if (!trimmed) {
-                setIsOpen(false);
-              }
+              setIsOpen(false);
             } else {
               setIsOpen(true);
             }
@@ -209,10 +217,17 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
                         <button
                           type="button"
                           onClick={() => handleAdd(book)}
-                          className="h-7 px-2.5 bg-[#5DB8CD] hover:bg-[#4FA7BC] text-white text-[11px] font-medium rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
+                          disabled={addingIds.has(book.id)}
+                          className="h-7 px-2.5 bg-[#5DB8CD] hover:bg-[#4FA7BC] disabled:opacity-50 text-white text-[11px] font-medium rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
                         >
-                          <span className="font-bold leading-none">+</span>
-                          <span>Add</span>
+                          {addingIds.has(book.id) ? (
+                            <span>Adding...</span>
+                          ) : (
+                            <>
+                              <span className="font-bold leading-none">+</span>
+                              <span>Add</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </li>

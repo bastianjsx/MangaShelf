@@ -26,7 +26,7 @@ export function hashString(str: string): number {
     hash = (hash << 5) - hash + str.charCodeAt(i);
     hash |= 0;
   }
-  return Math.abs(hash);
+  return hash === -2147483648 ? 2147483647 : Math.abs(hash);
 }
 
 export function getSpineDisplayTitle(title: string): string {
@@ -49,48 +49,100 @@ export function getSpineDisplayTitle(title: string): string {
   return clean || title;
 }
 
+export type ColorFamily =
+  | 'red'
+  | 'pink'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'teal'
+  | 'blue'
+  | 'purple'
+  | 'brown'
+  | 'neutral';
+
 export interface SoftPaletteSwatch {
   name: string;
   hex: string;
+  family: ColorFamily;
+  priority: number;
 }
 
 export const BOOKSTORE_SOFT_PALETTE: SoftPaletteSwatch[] = [
-  { name: 'Terracotta', hex: '#C76B52' },
-  { name: 'Muted red', hex: '#A94743' },
-  { name: 'Amber', hex: '#D19A42' },
-  { name: 'Mustard', hex: '#C5AA43' },
-  { name: 'Sage', hex: '#82977A' },
-  { name: 'Forest', hex: '#477A6A' },
-  { name: 'Dusty blue', hex: '#6397AD' },
-  { name: 'Navy', hex: '#405D78' },
-  { name: 'Sand', hex: '#C7AC88' },
-  { name: 'Taupe', hex: '#A68C75' },
-  { name: 'Cream', hex: '#E3D5BD' },
-  { name: 'Charcoal', hex: '#55514C' },
+  // Red
+  { name: 'Crimson Matte', hex: '#8F3835', family: 'red', priority: 1 },
+  { name: 'Muted red', hex: '#A94743', family: 'red', priority: 2 },
+  { name: 'Rust', hex: '#B8583B', family: 'red', priority: 3 },
+  { name: 'Terracotta', hex: '#C76B52', family: 'red', priority: 4 },
 
-  { name: 'Rust', hex: '#B8583B' },
-  { name: 'Crimson Matte', hex: '#8F3835' },
-  { name: 'Dusty Rose', hex: '#B86878' },
-  { name: 'Muted Plum', hex: '#7D4D6E' },
-  { name: 'Dusty Violet', hex: '#655075' },
-  { name: 'Deep Lavender', hex: '#806888' },
-  { name: 'Slate Teal', hex: '#4A7A7B' },
-  { name: 'Deep Spruce', hex: '#345950' },
-  { name: 'Olive', hex: '#73835B' },
-  { name: 'Warm Matcha', hex: '#8C9A6F' },
-  { name: 'Warm Ochre', hex: '#C28938' },
-  { name: 'Warm Caramel', hex: '#B8723C' },
-  { name: 'Slate Blue', hex: '#4D6B82' },
-  { name: 'Deep Indigo', hex: '#35455E' },
-  { name: 'Warm Cedar', hex: '#8C644B' },
-  { name: 'Warm Ivory', hex: '#ECE3D0' },
-  { name: 'Sumi Ink', hex: '#373432' },
+  // Pink
+  { name: 'Dusty Rose', hex: '#B86878', family: 'pink', priority: 1 },
+
+  // Orange
+  { name: 'Warm Caramel', hex: '#B8723C', family: 'orange', priority: 1 },
+
+  // Yellow / Gold
+  { name: 'Warm Ochre', hex: '#C28938', family: 'yellow', priority: 1 },
+  { name: 'Amber', hex: '#D19A42', family: 'yellow', priority: 2 },
+  { name: 'Mustard', hex: '#C5AA43', family: 'yellow', priority: 3 },
+
+  // Green
+  { name: 'Forest', hex: '#477A6A', family: 'green', priority: 1 },
+  { name: 'Deep Spruce', hex: '#345950', family: 'green', priority: 2 },
+  { name: 'Olive', hex: '#73835B', family: 'green', priority: 3 },
+  { name: 'Warm Matcha', hex: '#8C9A6F', family: 'green', priority: 4 },
+  { name: 'Sage', hex: '#82977A', family: 'green', priority: 5 },
+
+  // Teal
+  { name: 'Slate Teal', hex: '#4A7A7B', family: 'teal', priority: 1 },
+
+  // Blue
+  { name: 'Navy', hex: '#405D78', family: 'blue', priority: 1 },
+  { name: 'Deep Indigo', hex: '#35455E', family: 'blue', priority: 2 },
+  { name: 'Slate Blue', hex: '#4D6B82', family: 'blue', priority: 3 },
+  { name: 'Dusty blue', hex: '#6397AD', family: 'blue', priority: 4 },
+
+  // Purple
+  { name: 'Muted Plum', hex: '#7D4D6E', family: 'purple', priority: 1 },
+  { name: 'Deep Lavender', hex: '#806888', family: 'purple', priority: 2 },
+  { name: 'Dusty Violet', hex: '#655075', family: 'purple', priority: 3 },
+
+  // Brown
+  { name: 'Warm Cedar', hex: '#8C644B', family: 'brown', priority: 1 },
+  { name: 'Taupe', hex: '#A68C75', family: 'brown', priority: 2 },
+  { name: 'Sand', hex: '#C7AC88', family: 'brown', priority: 3 },
+
+  // Neutral
+  { name: 'Charcoal', hex: '#55514C', family: 'neutral', priority: 1 },
+  { name: 'Sumi Ink', hex: '#373432', family: 'neutral', priority: 2 },
+  { name: 'Cream', hex: '#E3D5BD', family: 'neutral', priority: 3 },
+  { name: 'Warm Ivory', hex: '#ECE3D0', family: 'neutral', priority: 4 },
 ];
+
+export const FAMILY_DEFAULTS: Record<ColorFamily, string> = {
+  red: '#8F3835', // Crimson Matte
+  pink: '#B86878', // Dusty Rose
+  orange: '#B8723C', // Warm Caramel
+  yellow: '#C28938', // Warm Ochre
+  green: '#477A6A', // Forest
+  teal: '#4A7A7B', // Slate Teal
+  blue: '#405D78', // Navy
+  purple: '#7D4D6E', // Muted Plum
+  brown: '#8C644B', // Warm Cedar
+  neutral: '#A68C75', // Taupe
+};
 
 export const CHROMATIC_SOFT_PALETTE: string[] = BOOKSTORE_SOFT_PALETTE.map((s) => s.hex);
 
 export function hexToHsl(h: string): [number, number, number] {
-  const clean = h.replace('#', '');
+  if (typeof h !== 'string') return [0, 0, 0];
+  let clean = h.replace('#', '').trim();
+  if (clean.length === 3 && /^[0-9A-Fa-f]{3}$/.test(clean)) {
+    clean = clean.split('').map((c) => c + c).join('');
+  }
+  if (!/^[0-9A-Fa-f]{6}$/.test(clean)) {
+    return [0, 0, 0];
+  }
   const r = parseInt(clean.slice(0, 2), 16) / 255;
   const g = parseInt(clean.slice(2, 4), 16) / 255;
   const b = parseInt(clean.slice(4, 6), 16) / 255;
@@ -134,53 +186,108 @@ export function hslToHex(h: number, s: number, l: number): string {
 
 const PRECOMPUTED_SWATCHES = BOOKSTORE_SOFT_PALETTE.map((swatch) => {
   const [h, s, l] = hexToHsl(swatch.hex);
-  return { hex: swatch.hex, h, s, l };
+  return { ...swatch, h, s, l };
 });
 
 const softPaletteCache = new Map<string, string>();
+
+export function getColorFamily(hex: string): ColorFamily {
+  const [h, s, l] = hexToHsl(hex);
+
+  // Low saturation or extreme lightness is neutral
+  if (s < 0.12 || l < 0.14 || l > 0.92) {
+    return 'neutral';
+  }
+
+  // Brown detection for earthy, low-to-medium lightness warm tones
+  if (h >= 15 && h <= 45 && l <= 0.45 && s <= 0.55) {
+    return 'brown';
+  }
+
+  // Hue-based classification
+  if ((h >= 345 && h <= 360) || (h >= 0 && h < 15)) {
+    return 'red';
+  }
+  if (h >= 15 && h < 40) {
+    return 'orange';
+  }
+  if (h >= 40 && h < 65) {
+    return 'yellow';
+  }
+  if (h >= 65 && h < 160) {
+    return 'green';
+  }
+  if (h >= 160 && h < 195) {
+    return 'teal';
+  }
+  if (h >= 195 && h < 255) {
+    return 'blue';
+  }
+  if (h >= 255 && h < 290) {
+    return 'purple';
+  }
+  if (h >= 290 && h < 345) {
+    return 'pink';
+  }
+
+  return 'neutral';
+}
 
 export function mapToSoftPalette(baseColorHex: string): string {
   const cleanHex = baseColorHex.trim();
   const hex = cleanHex.startsWith('#') ? cleanHex : `#${cleanHex}`;
   if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
-    return '#A68C75';
+    return FAMILY_DEFAULTS.neutral;
   }
 
   const upperHex = hex.toUpperCase();
   const cached = softPaletteCache.get(upperHex);
   if (cached) return cached;
 
-  const [h1, s1, l1] = hexToHsl(hex);
+  const [, , l] = hexToHsl(hex);
+  const family = getColorFamily(hex);
 
-  if (l1 < 0.18) {
-    return '#373432'; // Sumi Ink
-  }
-  if (l1 > 0.88 && s1 < 0.25) {
-    return '#ECE3D0'; // Warm Ivory
-  }
-  if (s1 < 0.18) {
-    if (l1 > 0.72) return '#E3D5BD'; // Cream
-    if (l1 > 0.58) return '#C7AC88'; // Sand
-    if (l1 > 0.42) return '#A68C75'; // Taupe
-    return '#55514C'; // Charcoal
+  if (family === 'neutral') {
+    let neutralHex: string;
+    if (l < 0.28) {
+      neutralHex = '#373432'; // Sumi Ink
+    } else if (l < 0.48) {
+      neutralHex = '#55514C'; // Charcoal
+    } else if (l > 0.80) {
+      neutralHex = '#ECE3D0'; // Warm Ivory
+    } else if (l > 0.65) {
+      neutralHex = '#E3D5BD'; // Cream
+    } else {
+      neutralHex = '#A68C75'; // Taupe
+    }
+    softPaletteCache.set(upperHex, neutralHex);
+    return neutralHex;
   }
 
-  let bestHex = PRECOMPUTED_SWATCHES[0].hex;
+  const familySwatches = PRECOMPUTED_SWATCHES.filter((sw) => sw.family === family);
+  if (familySwatches.length === 0) {
+    const defaultHex = FAMILY_DEFAULTS[family] || FAMILY_DEFAULTS.neutral;
+    softPaletteCache.set(upperHex, defaultHex);
+    return defaultHex;
+  }
+
+  const [h] = hexToHsl(hex);
+  let bestHex = familySwatches[0].hex;
   let minScore = Infinity;
 
-  for (const swatch of PRECOMPUTED_SWATCHES) {
-    let dH = Math.abs(h1 - swatch.h);
+  for (const sw of familySwatches) {
+    let dH = Math.abs(h - sw.h);
     if (dH > 180) dH = 360 - dH;
 
-    const rad = (dH * Math.PI) / 180;
-    const hueDist = (1 - Math.cos(rad)) * 90;
-    const lumDist = Math.abs(l1 - swatch.l) * 35;
-    const satDist = Math.abs(s1 - swatch.s) * 15;
+    const targetL = 0.38;
+    const lumScore = Math.abs(sw.l - targetL) * 35;
+    const hueScore = (dH / 180) * 40;
+    const priorityScore = sw.priority * 5;
 
-    const totalScore = hueDist + lumDist + satDist;
-    if (totalScore < minScore) {
-      minScore = totalScore;
-      bestHex = swatch.hex;
+    const score = hueScore + lumScore + priorityScore;
+    if (score < minScore) {
+      minScore = score;
+      bestHex = sw.hex;
     }
   }
 
@@ -305,9 +412,9 @@ export function getBookOwnedVolumes(book: Book): number[] {
   }
   const count = Math.max(
     1,
-    typeof book.volume === 'number' && book.volume > 0
-      ? book.volume
-      : (book.volumesOwned ?? 1)
+    typeof book.volumesOwned === 'number' && book.volumesOwned > 0
+      ? book.volumesOwned
+      : 1
   );
   return Array.from({ length: count }, (_, i) => i + 1);
 }

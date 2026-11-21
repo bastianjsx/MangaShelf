@@ -6,6 +6,7 @@ interface VolumePickerModalProps {
   initialOwnedVolumes: number[];
   initialReadVolumes: number[];
   totalAvailableVolumes: number;
+  hasUnknownTotalVolumes?: boolean;
   onSave: (ownedVolumes: number[], readVolumes: number[]) => void;
 }
 
@@ -15,11 +16,13 @@ export function VolumePickerModal({
   initialOwnedVolumes,
   initialReadVolumes,
   totalAvailableVolumes,
+  hasUnknownTotalVolumes = false,
   onSave,
 }: VolumePickerModalProps) {
   const [tempOwnedVolumes, setTempOwnedVolumes] = useState<number[]>(initialOwnedVolumes);
   const [tempReadVolumes, setTempReadVolumes] = useState<number[]>(initialReadVolumes);
   const [volumeFilter, setVolumeFilter] = useState<'all' | 'owned' | 'read'>('all');
+  const [extraCount, setExtraCount] = useState(0);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -35,6 +38,8 @@ export function VolumePickerModal({
     };
   }, [isOpen, onClose]);
 
+  const effectiveTotalVolumes = totalAvailableVolumes + extraCount;
+
   const displayedVolumes = useMemo(() => {
     if (volumeFilter === 'owned') {
       return [...tempOwnedVolumes].sort((a, b) => a - b);
@@ -42,8 +47,8 @@ export function VolumePickerModal({
     if (volumeFilter === 'read') {
       return [...tempReadVolumes].sort((a, b) => a - b);
     }
-    return Array.from({ length: totalAvailableVolumes }, (_, i) => i + 1);
-  }, [volumeFilter, tempOwnedVolumes, tempReadVolumes, totalAvailableVolumes]);
+    return Array.from({ length: effectiveTotalVolumes }, (_, i) => i + 1);
+  }, [volumeFilter, tempOwnedVolumes, tempReadVolumes, effectiveTotalVolumes]);
 
   const handleToggleVolumeState = (volNum: number) => {
     const isRead = tempReadVolumes.includes(volNum);
@@ -60,7 +65,7 @@ export function VolumePickerModal({
   };
 
   const handleSelectAllOwned = () => {
-    const allVols = Array.from({ length: totalAvailableVolumes }, (_, i) => i + 1);
+    const allVols = Array.from({ length: effectiveTotalVolumes }, (_, i) => i + 1);
     setTempOwnedVolumes(allVols);
   };
 
@@ -137,7 +142,7 @@ export function VolumePickerModal({
                   ? 'bg-white text-[#2A2622] font-bold shadow-2xs'
                   : 'text-[#6E675F] hover:text-[#2A2622] font-medium'
               }`}
-              title={`Show all volumes (${totalAvailableVolumes})`}
+              title={`Show all volumes (${effectiveTotalVolumes})`}
             >
               All
             </button>
@@ -211,37 +216,51 @@ export function VolumePickerModal({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 pb-2">
-              {displayedVolumes.map((volNum) => {
-                const isRead = tempReadVolumes.includes(volNum);
-                const isOwned = tempOwnedVolumes.includes(volNum);
-                const statusLabel = isRead ? 'Read' : isOwned ? 'Owned' : 'Unread';
+            <>
+              <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 pb-2">
+                {displayedVolumes.map((volNum) => {
+                  const isRead = tempReadVolumes.includes(volNum);
+                  const isOwned = tempOwnedVolumes.includes(volNum);
+                  const statusLabel = isRead ? 'Read' : isOwned ? 'Owned' : 'Unread';
 
-                const tileClass = isRead
-                  ? 'bg-[#047857] text-white border border-[#036046] shadow-2xs'
-                  : isOwned
-                    ? 'bg-[#A84300] text-white border border-[#8F3900] shadow-2xs'
-                    : 'bg-[#F7F2EA] text-[#332A24] font-bold border border-[#D5C7B7] shadow-2xs hover:bg-[#EFE8DD] hover:border-[#C4B3A0]';
+                  const tileClass = isRead
+                    ? 'bg-[#047857] text-white border border-[#036046] shadow-2xs'
+                    : isOwned
+                      ? 'bg-[#A84300] text-white border border-[#8F3900] shadow-2xs'
+                      : 'bg-[#F7F2EA] text-[#332A24] font-bold border border-[#D5C7B7] shadow-2xs hover:bg-[#EFE8DD] hover:border-[#C4B3A0]';
 
-                return (
+                  return (
+                    <button
+                      key={volNum}
+                      type="button"
+                      onClick={() => handleToggleVolumeState(volNum)}
+                      className={`h-10 rounded-[10px] text-xs font-semibold flex items-center justify-center transition-all cursor-pointer select-none relative active:scale-[0.96] hover:-translate-y-0.5 ${tileClass}`}
+                      title={`Volume ${volNum} (${statusLabel})`}
+                      aria-label={`Volume ${volNum}, ${statusLabel}`}
+                    >
+                      {volNum}
+                      {isRead && (
+                        <span className="absolute top-1 right-1 text-[9px] font-bold leading-none text-emerald-200">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {hasUnknownTotalVolumes && volumeFilter === 'all' && (
+                <div className="pt-3 pb-2 flex justify-center">
                   <button
-                    key={volNum}
                     type="button"
-                    onClick={() => handleToggleVolumeState(volNum)}
-                    className={`h-10 rounded-[10px] text-xs font-semibold flex items-center justify-center transition-all cursor-pointer select-none relative active:scale-[0.96] hover:-translate-y-0.5 ${tileClass}`}
-                    title={`Volume ${volNum} (${statusLabel})`}
-                    aria-label={`Volume ${volNum}, ${statusLabel}`}
+                    onClick={() => setExtraCount((prev) => prev + 10)}
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-[#EFE8DD] hover:bg-[#E5DCCF] border border-[#D5C7B7] text-[#5C4D3C] text-xs font-semibold transition-all cursor-pointer shadow-2xs hover:-translate-y-0.5 active:scale-95"
                   >
-                    {volNum}
-                    {isRead && (
-                      <span className="absolute top-1 right-1 text-[9px] font-bold leading-none text-emerald-200">
-                        ✓
-                      </span>
-                    )}
+                    Add 10 More Volumes
                   </button>
-                );
-              })}
-            </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 

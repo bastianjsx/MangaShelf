@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   type AniListUser,
   getCachedAniListUser,
@@ -20,6 +20,8 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
   const [user, setUser] = useState<AniListUser | null>(getCachedAniListUser);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const handleSyncManga = useCallback(
     async (targetUserId?: number, targetToken?: string) => {
@@ -28,6 +30,7 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
       if (!currentUserId) return;
 
       setIsSyncing(true);
+      setSyncError(null);
       try {
         const remoteBooks = await fetchUserMangaCollection(
           currentUserId,
@@ -35,8 +38,9 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
         );
         onSyncManga?.(remoteBooks);
       } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to sync with AniList.';
         console.error('Failed to sync collection from AniList:', err);
-        alert(err instanceof Error ? err.message : 'Failed to sync with AniList.');
+        setSyncError(message);
       } finally {
         setIsSyncing(false);
       }
@@ -44,7 +48,14 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
     [user?.id, onSyncManga]
   );
 
+  const syncMangaRef = useRef(handleSyncManga);
   useEffect(() => {
+    syncMangaRef.current = handleSyncManga;
+  }, [handleSyncManga]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     const checkAuth = async () => {
       const redirectToken = handleOAuthRedirect();
       const token = redirectToken || getAniListToken();
@@ -52,19 +63,28 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
       if (token) {
         try {
           const viewer = await fetchCurrentAniListUser(token);
-          setUser(viewer);
-          if (redirectToken) {
-            await handleSyncManga(viewer.id, token);
+          if (!cancelled) {
+            setUser(viewer);
+            if (redirectToken) {
+              await syncMangaRef.current(viewer.id, token);
+            }
           }
         } catch (err) {
-          console.error('AniList auth initialization failed:', err);
-          setUser(null);
+          if (!cancelled) {
+            console.error('AniList auth initialization failed:', err);
+            setUser(null);
+            setAuthError(err instanceof Error ? err.message : 'AniList authentication failed');
+          }
         }
       }
     };
 
     checkAuth();
-  }, [handleSyncManga]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleLoginClick = useCallback(() => {
     const clientId = getAniListClientId();
@@ -78,16 +98,20 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
   const handleLogout = useCallback(() => {
     clearAniListAuth();
     setUser(null);
+    setSyncError(null);
+    setAuthError(null);
   }, []);
 
   const handleDirectTokenSubmit = useCallback(
     async (token: string) => {
+      setAuthError(null);
       try {
         const viewer = await fetchCurrentAniListUser(token);
         setUser(viewer);
         await handleSyncManga(viewer.id, token);
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Invalid AniList token.');
+        const message = err instanceof Error ? err.message : 'Invalid AniList token.';
+        setAuthError(message);
       }
     },
     [handleSyncManga]
@@ -98,6 +122,8 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
     isLoginModalOpen,
     setIsLoginModalOpen,
     isSyncing,
+    syncError,
+    authError,
     handleLoginClick,
     handleLogout,
     handleDirectTokenSubmit,

@@ -21,7 +21,7 @@ interface HeaderProps {
   shelfMode: ShelfDisplayMode;
   onSelectShelfMode: (mode: ShelfDisplayMode) => void;
 
-  onAddBook: (book: Book) => void;
+  onAddBook: (book: Book) => void | Promise<boolean>;
   existingBookIds: Set<string>;
 
   activeStatus: StatusFilter;

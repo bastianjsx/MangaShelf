@@ -13,6 +13,7 @@ export function App() {
     books,
     shelfMode,
     sortBy,
+    mutationError,
     setShelfMode,
     setSortBy,
     syncRemoteBooks,
@@ -28,6 +29,8 @@ export function App() {
     isLoginModalOpen,
     setIsLoginModalOpen,
     isSyncing,
+    syncError,
+    authError,
     handleLoginClick,
     handleLogout,
     handleDirectTokenSubmit,
@@ -60,6 +63,10 @@ export function App() {
     () => (selectedBookId ? books.find((b) => b.id === selectedBookId) ?? null : null),
     [books, selectedBookId]
   );
+
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
+  const activeError = syncError || authError || mutationError;
+  const currentError = activeError && activeError !== dismissedError ? activeError : null;
 
   useEffect(() => {
     const preventGlobalDrop = (e: DragEvent) => e.preventDefault();
@@ -146,6 +153,24 @@ export function App() {
         onClose={() => setIsLoginModalOpen(false)}
         onDirectTokenSubmit={handleDirectTokenSubmit}
       />
+
+      {currentError && (
+        <aside
+          role="alert"
+          aria-live="assertive"
+          className="fixed bottom-5 right-5 z-70 max-w-sm px-4 py-3 rounded-xl bg-[#2D1B14] text-white text-xs shadow-2xl flex items-center justify-between gap-3 border border-white/10 animate-in fade-in slide-in-from-bottom-2"
+        >
+          <span className="flex-1 leading-snug">{currentError}</span>
+          <button
+            type="button"
+            onClick={() => setDismissedError(currentError)}
+            className="w-5 h-5 rounded-full flex items-center justify-center text-stone-400 hover:text-white hover:bg-white/10 text-xs font-bold shrink-0 transition-colors cursor-pointer"
+            aria-label="Dismiss error notification"
+          >
+            ✕
+          </button>
+        </aside>
+      )}
     </div>
   );
 }

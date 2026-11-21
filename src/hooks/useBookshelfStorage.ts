@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Book, BookStatus, ShelfDisplayMode, SortOption } from '../types/book';
 import { getAniListToken, syncEntryToAniList } from '../services/anilistAuth';
 import { parseStoredBooks, serializeBooks } from '../utils/storageValidation';
@@ -90,6 +90,8 @@ function mergeRemoteWithLocal(local: Book, remote: Book): Book {
     spineColor: local.spineColor ?? remote.spineColor,
     spineImageUrl: local.spineImageUrl ?? remote.spineImageUrl,
     createdAt: local.createdAt,
+    updatedAt: new Date().toISOString(),
+    lastSyncedAt: new Date().toISOString(),
 
     // Intentional status reconciliation
     status: remote.status && remote.status !== 'none' ? remote.status : local.status,
@@ -104,8 +106,22 @@ export function useBookshelfStorage() {
   const [books, setBooks] = useState<Book[]>(getInitialBooks);
   const [shelfMode, setShelfMode] = useState<ShelfDisplayMode>(getInitialShelfMode);
   const [sortBy, setSortBy] = useState<SortOption>(getInitialSortBy);
-  const [mutationStatus, setMutationStatus] = useState<MutationSyncState>('idle');
-  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [mutationsByBook, setMutationsByBook] = useState<Record<string, MutationSyncState>>({});
+  const [mutationErrorsByBook, setMutationErrorsByBook] = useState<Record<string, string>>({});
+  const inFlightRef = useRef<Set<string>>(new Set());
+
+  const mutationStatus: MutationSyncState = useMemo(() => {
+    const states = Object.values(mutationsByBook);
+    if (states.includes('syncing')) return 'syncing';
+    if (states.includes('error')) return 'error';
+    if (states.includes('synced')) return 'synced';
+    return 'idle';
+  }, [mutationsByBook]);
+
+  const mutationError = useMemo(() => {
+    const errors = Object.values(mutationErrorsByBook).filter(Boolean);
+    return errors.length > 0 ? errors[errors.length - 1] : null;
+  }, [mutationErrorsByBook]);
 
   useEffect(() => {
     try {
@@ -147,16 +163,30 @@ export function useBookshelfStorage() {
       const mediaId = parseInt(bookId.replace('anilist-', ''), 10);
       if (isNaN(mediaId)) return true;
 
-      setMutationStatus('syncing');
-      setMutationError(null);
+      // Prevent conflicting concurrent requests on the same book
+      if (inFlightRef.current.has(bookId)) {
+        return false;
+      }
+      inFlightRef.current.add(bookId);
+
+      setMutationsByBook((prev) => ({ ...prev, [bookId]: 'syncing' }));
+      setMutationErrorsByBook((prev) => {
+        const next = { ...prev };
+        delete next[bookId];
+        return next;
+      });
+
       try {
         await syncEntryToAniList(token, mediaId, payload);
-        setMutationStatus('synced');
+        setMutationsByBook((prev) => ({ ...prev, [bookId]: 'synced' }));
         return true;
       } catch (err) {
-        setMutationStatus('error');
-        setMutationError(err instanceof Error ? err.message : 'Failed to sync with AniList');
+        const message = err instanceof Error ? err.message : 'Failed to sync with AniList';
+        setMutationsByBook((prev) => ({ ...prev, [bookId]: 'error' }));
+        setMutationErrorsByBook((prev) => ({ ...prev, [bookId]: message }));
         return false;
+      } finally {
+        inFlightRef.current.delete(bookId);
       }
     },
     []
@@ -182,9 +212,11 @@ export function useBookshelfStorage() {
 
   const handleAddBook = useCallback(
     async (newBook: Book): Promise<boolean> => {
+      const now = new Date().toISOString();
       const preparedBook: Book = {
         ...newBook,
-        createdAt: newBook.createdAt || new Date().toISOString(),
+        createdAt: newBook.createdAt || now,
+        updatedAt: now,
       };
 
       setBooks((prev) => {
@@ -224,7 +256,11 @@ export function useBookshelfStorage() {
 
   const handleUpdateStatus = useCallback(
     async (bookId: string, status: BookStatus): Promise<boolean> => {
-      setBooks((prev) => prev.map((b) => (b.id === bookId ? { ...b, status } : b)));
+      setBooks((prev) =>
+        prev.map((b) =>
+          b.id === bookId ? { ...b, status, updatedAt: new Date().toISOString() } : b
+        )
+      );
       return syncToAniList(bookId, { status });
     },
     [syncToAniList]
@@ -242,7 +278,7 @@ export function useBookshelfStorage() {
       }
     ): Promise<boolean> => {
       const applyProgressUpdate = (b: Book): Book => {
-        const updated = { ...b, ...progress };
+        const updated = { ...b, ...progress, updatedAt: new Date().toISOString() };
         if (Array.isArray(progress.ownedVolumes)) {
           updated.ownedVolumes = progress.ownedVolumes;
           updated.volume =
@@ -286,6 +322,8 @@ export function useBookshelfStorage() {
     sortBy,
     mutationStatus,
     mutationError,
+    mutationsByBook,
+    mutationErrorsByBook,
     setShelfMode,
     setSortBy,
     syncRemoteBooks,

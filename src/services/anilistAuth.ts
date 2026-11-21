@@ -1,5 +1,5 @@
 import type { Book, BookStatus } from '../types/book';
-import { extractAniListAuthor } from './anilist';
+import { transformAniListMediaToBook, type AniListMedia } from './anilist';
 import { requestAniListGraphQL, AniListAuthError } from './anilistClient';
 
 export interface AniListUser {
@@ -249,37 +249,20 @@ export async function fetchUserMangaCollection(userId: number, token?: string): 
       if (media.format && media.format !== 'MANGA') continue;
       seenMediaIds.add(media.id);
 
-      const title =
-        media.title?.english?.trim() ||
-        media.title?.romaji?.trim() ||
-        'Untitled';
-
-      const author = extractAniListAuthor(media.staff);
-      const coverUrl = media.coverImage?.large || media.coverImage?.medium || '';
-
-      const genres = media.genres || [];
-      const filteredGenres = genres.filter(
-        (g) => Boolean(g) && g.toLowerCase() !== 'manga'
-      );
-      const categories = ['Manga', ...filteredGenres].slice(0, 3);
-      const rawDescription = media.description || '';
-      const cleanDescription = rawDescription.replace(/<[^>]*>/g, '').trim();
-
+      const baseBook = transformAniListMediaToBook(media as unknown as AniListMedia);
       const status: BookStatus = ANILIST_STATUS_TO_BOOK_STATUS[entry.status] || 'none';
+      const readVolumeCount = entry.progressVolumes || 0;
+      const readVolumes =
+        readVolumeCount > 0
+          ? Array.from({ length: readVolumeCount }, (_, i) => i + 1)
+          : [];
 
       books.push({
-        id: `anilist-${media.id}`,
-        title,
-        author,
-        category: categories,
-        coverUrl,
-        spineColor: media.coverImage?.color || undefined,
-        description: cleanDescription,
+        ...baseBook,
         status,
-        volume: entry.progressVolumes || undefined,
+        volume: readVolumeCount || undefined,
+        readVolumes,
         chapter: entry.progress || undefined,
-        totalVolumes: media.volumes || undefined,
-        createdAt: new Date().toISOString(),
       });
     }
   }
