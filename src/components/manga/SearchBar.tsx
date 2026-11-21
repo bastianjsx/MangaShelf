@@ -43,28 +43,29 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
       return;
     }
 
-    let active = true;
+    const controller = new AbortController();
 
     const timer = setTimeout(async () => {
       setLoading(true);
       setSearched(true);
       try {
-        const data = await searchAniList(trimmed, 8);
-        if (active) {
-          setResults(data);
-          setLoading(false);
+        const data = await searchAniList(trimmed, 8, controller.signal);
+        setResults(data);
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
         }
-      } catch (err) {
-        if (active) {
-          console.error('AniList search failed:', err);
-          setResults([]);
+        console.error('AniList search failed:', err);
+        setResults([]);
+      } finally {
+        if (!controller.signal.aborted) {
           setLoading(false);
         }
       }
     }, 350);
 
     return () => {
-      active = false;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [query]);

@@ -74,49 +74,52 @@ interface AniListMedia {
   siteUrl?: string;
 }
 
-export function extractAniListAuthor(staff?: {
-  nodes?: { name?: { full?: string } }[];
-}): string {
-  return staff?.nodes?.[0]?.name?.full || 'Unknown Creator';
+export function extractAniListAuthor(staff?: { nodes?: { name?: { full?: string } }[] }): string {
+  if (staff?.nodes && staff.nodes.length > 0 && staff.nodes[0]?.name?.full) {
+    return staff.nodes[0].name.full;
+  }
+  return 'Unknown Author';
 }
 
-export async function searchAniList(query: string, perPage = 8): Promise<Book[]> {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
+export function transformAniListMediaToBook(media: AniListMedia): Book {
+  const title = media.title.english || media.title.romaji || 'Untitled';
+  const author = extractAniListAuthor(media.staff);
+  const coverUrl = media.coverImage?.large || media.coverImage?.medium || '';
+  const spineColor = media.coverImage?.color || undefined;
+  const releaseDate = formatAniListDate(media.startDate);
 
+  const genres = media.genres || [];
+  const filteredGenres = genres.filter((g) => Boolean(g) && g.toLowerCase() !== 'manga');
+  const category = ['Manga', ...filteredGenres].slice(0, 3);
+
+  const rawDescription = media.description || '';
+  const cleanDescription = rawDescription.replace(/<[^>]*>/g, '').trim();
+
+  return {
+    id: `anilist-${media.id}`,
+    title,
+    author,
+    category,
+    coverUrl,
+    spineColor,
+    releaseDate,
+    description: cleanDescription,
+    totalVolumes: media.volumes || undefined,
+    status: 'none',
+  };
+}
+
+export async function searchAniList(
+  search: string,
+  perPage = 10,
+  signal?: AbortSignal
+): Promise<Book[]> {
   const data = await requestAniListGraphQL<{ Page?: { media?: AniListMedia[] } }>(
     SEARCH_MANGA_QUERY,
-    {
-      search: trimmed,
-      perPage,
-    }
+    { search, perPage },
+    { signal }
   );
 
-  const mediaList: AniListMedia[] = data.Page?.media || [];
-
-  return mediaList.map((media): Book => {
-    const title = media.title.english?.trim() || media.title.romaji?.trim() || 'Untitled';
-    const author = extractAniListAuthor(media.staff);
-    const coverUrl = media.coverImage?.large || media.coverImage?.medium || '';
-    const filteredGenres = (media.genres || []).filter(
-      (g) => Boolean(g) && g.toLowerCase() !== 'manga'
-    );
-    const categories = ['Manga', ...filteredGenres].slice(0, 3);
-    const rawDescription = media.description || '';
-    const cleanDescription = rawDescription.replace(/<[^>]*>/g, '').trim();
-
-    return {
-      id: `anilist-${media.id}`,
-      title,
-      author,
-      category: categories,
-      coverUrl,
-      spineColor: media.coverImage?.color || undefined,
-      description: cleanDescription,
-      status: 'want-to-read',
-      createdAt: new Date().toISOString(),
-      releaseDate: formatAniListDate(media.startDate),
-      totalVolumes: media.volumes || undefined,
-    };
-  });
+  const mediaList = data.Page?.media || [];
+  return mediaList.map(transformAniListMediaToBook);
 }

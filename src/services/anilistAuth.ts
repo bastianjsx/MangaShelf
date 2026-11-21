@@ -301,5 +301,6 @@ export async function syncEntryToAniList(
     );
   } catch (err) {
     console.warn('Network error while syncing changes to AniList:', err);
+    throw err;
   }
 }

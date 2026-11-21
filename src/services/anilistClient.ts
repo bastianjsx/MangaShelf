@@ -2,43 +2,96 @@ export const ANILIST_GRAPHQL_ENDPOINT = 'https://graphql.anilist.co';
 
 export interface GraphQLResponse<T> {
   data?: T;
-  errors?: { message: string }[];
+  errors?: { message: string; status?: number }[];
+}
+
+export class AniListError extends Error {
+  status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'AniListError';
+    this.status = status;
+  }
+}
+
+export class AniListAuthError extends AniListError {
+  constructor() {
+    super('UNAUTHORIZED', 401);
+    this.name = 'AniListAuthError';
+  }
+}
+
+export class AniListRateLimitError extends AniListError {
+  retryAfterSeconds?: number;
+
+  constructor(retryAfterSeconds?: number) {
+    super('AniList rate limit exceeded. Please wait a moment.', 429);
+    this.name = 'AniListRateLimitError';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+export interface RequestOptions {
+  token?: string | null;
+  signal?: AbortSignal;
 }
 
 export async function requestAniListGraphQL<T>(
   query: string,
   variables?: Record<string, unknown>,
-  token?: string | null
+  optionsOrToken?: RequestOptions | string | null
 ): Promise<T> {
+  const options: RequestOptions =
+    typeof optionsOrToken === 'string'
+      ? { token: optionsOrToken }
+      : optionsOrToken || {};
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
   };
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (options.token) {
+    headers.Authorization = `Bearer ${options.token}`;
   }
 
-  const res = await fetch(ANILIST_GRAPHQL_ENDPOINT, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ query, variables }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(ANILIST_GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, variables }),
+      signal: options.signal,
+    });
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw err;
+    }
+    throw new AniListError(
+      err instanceof Error ? err.message : 'Network error communicating with AniList'
+    );
+  }
 
   if (!res.ok) {
     if (res.status === 401) {
-      throw new Error('UNAUTHORIZED');
+      throw new AniListAuthError();
     }
-    throw new Error(`AniList error: ${res.status} ${res.statusText}`);
+    if (res.status === 429) {
+      const retryHeader = res.headers.get('Retry-After');
+      const retryAfter = retryHeader ? parseInt(retryHeader, 10) : undefined;
+      throw new AniListRateLimitError(retryAfter);
+    }
+    throw new AniListError(`AniList error: ${res.status} ${res.statusText}`, res.status);
   }
 
   const json = (await res.json()) as GraphQLResponse<T>;
   if (json.errors && json.errors.length > 0) {
-    throw new Error(json.errors[0]?.message || 'GraphQL error occurred.');
+    throw new AniListError(json.errors[0]?.message || 'GraphQL error occurred.');
   }
 
   if (!json.data) {
-    throw new Error('No data received from AniList GraphQL.');
+    throw new AniListError('No data received from AniList GraphQL.');
   }
 
   return json.data;
