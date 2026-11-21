@@ -11,7 +11,6 @@ interface BookSpineProps {
   book: Book;
   volumeNumber?: number;
   titleIndex?: number;
-  hasLeftGap?: boolean;
   onSelectBook?: (book: Book) => void;
   onHoverBook?: (
     book: Book,
@@ -26,7 +25,6 @@ export const BookSpine = memo(function BookSpine({
   book,
   volumeNumber,
   titleIndex,
-  hasLeftGap: _hasLeftGap,
   onSelectBook,
   onHoverBook,
   onLeaveBook,
@@ -36,7 +34,7 @@ export const BookSpine = memo(function BookSpine({
     onSelectBook?.(book);
   };
 
-  const palette = getSpinePalette(book, volumeNumber, titleIndex);
+  const palette = getSpinePalette(book, titleIndex);
   const format = getSpineFormat(book);
   const volumeInfo = getSpineVolumeInfo(book, volumeNumber);
   const displayTitle = getSpineDisplayTitle(book.title);

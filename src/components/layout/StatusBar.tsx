@@ -1,6 +1,6 @@
-import type { BookStatus } from '../../types/book';
+import type { StatusFilter } from '../../types/book';
 
-export type StatusFilter = BookStatus | 'all';
+export type { StatusFilter };
 
 interface StatusBarProps {
   activeStatus: StatusFilter;

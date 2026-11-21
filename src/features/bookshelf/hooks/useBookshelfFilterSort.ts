@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import type { Book, ShelfDisplayMode, SortOption } from '../../../types/book';
-import type { StatusFilter } from '../../../components/layout/StatusBar';
+import type { Book, ShelfDisplayMode, SortOption, StatusFilter } from '../../../types/book';
 import {
   extractCategories,
   calculateCategoryCounts,

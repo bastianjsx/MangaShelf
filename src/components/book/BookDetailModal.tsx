@@ -1,6 +1,10 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { Book, BookStatus } from '../../types/book';
-import { getSpinePalette } from '../../utils/spineUtils';
+import {
+  getSpinePalette,
+  getBookOwnedVolumes,
+  getBookReadVolumes,
+} from '../../utils/spineUtils';
 import { VolumePickerModal } from './VolumePickerModal';
 
 interface BookDetailModalProps {
@@ -31,35 +35,9 @@ export function BookDetailModal({
   const [imageError, setImageError] = useState(false);
   const [isVolumePickerOpen, setIsVolumePickerOpen] = useState(false);
 
-  const currentOwnedList = useMemo(() => {
-    if (Array.isArray(book.ownedVolumes)) {
-      return [...book.ownedVolumes].sort((a, b) => a - b);
-    }
-    const count = Math.max(
-      1,
-      typeof book.volume === 'number' && book.volume > 0
-        ? book.volume
-        : (book.volumesOwned ?? 1)
-    );
-    return Array.from({ length: count }, (_, i) => i + 1);
-  }, [book.ownedVolumes, book.volume, book.volumesOwned]);
-
+  const currentOwnedList = useMemo(() => getBookOwnedVolumes(book), [book]);
+  const currentReadList = useMemo(() => getBookReadVolumes(book), [book]);
   const spinePalette = useMemo(() => getSpinePalette(book), [book]);
-  const currentReadList = useMemo(() => {
-    if (Array.isArray(book.readVolumes)) {
-      const ownedSet = new Set(currentOwnedList);
-      return [...book.readVolumes]
-        .filter((v) => ownedSet.has(v))
-        .sort((a, b) => a - b);
-    }
-    if (typeof book.volume === 'number' && book.volume > 0) {
-      const ownedSet = new Set(currentOwnedList);
-      return Array.from({ length: book.volume }, (_, i) => i + 1).filter((v) =>
-        ownedSet.has(v)
-      );
-    }
-    return [];
-  }, [book.readVolumes, book.volume, currentOwnedList]);
 
   const volumeProgress = useMemo(() => {
     if (currentReadList.length > 0) {

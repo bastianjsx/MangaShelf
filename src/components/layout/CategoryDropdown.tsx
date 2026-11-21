@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback } from 'react';
+import { useDismiss } from '../../hooks/useDismiss';
 
 interface CategoryDropdownProps {
   categories: string[];
@@ -19,38 +20,12 @@ export function CategoryDropdown({
 }: CategoryDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const handleClose = useCallback(() => setIsOpen(false), []);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen]);
+  useDismiss(dropdownRef, handleClose, isOpen);
 
   const allSelected = categories.length > 0 && selectedCategories.length === categories.length;
   const hasSelection = selectedCategories.length > 0;
-
-  const sortedCategories = useMemo(
-    () => [...categories].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
-    [categories]
-  );
 
   return (
     <div className="relative inline-block text-left z-40" ref={dropdownRef}>
@@ -113,7 +88,7 @@ export function CategoryDropdown({
           </div>
 
           <div className="max-h-60 overflow-y-auto flex flex-col gap-0.5 pr-1">
-            {sortedCategories.map((category) => {
+            {categories.map((category) => {
               const isChecked = selectedCategories.includes(category);
               const count = categoryCounts[category];
 

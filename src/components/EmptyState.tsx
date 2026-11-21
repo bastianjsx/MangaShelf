@@ -1,4 +1,4 @@
-import type { StatusFilter } from './layout/StatusBar';
+import type { StatusFilter } from '../types/book';
 
 interface EmptyStateProps {
   type: 'empty-library' | 'no-matches';

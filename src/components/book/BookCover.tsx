@@ -6,7 +6,6 @@ interface BookCoverProps {
   book: Book;
   volumeNumber?: number;
   titleIndex?: number;
-  hasLeftGap?: boolean;
   onSelectBook?: (book: Book) => void;
   onHoverBook?: (
     book: Book,
@@ -31,7 +30,6 @@ export const BookCover = memo(function BookCover({
   book,
   volumeNumber,
   titleIndex,
-  hasLeftGap: _hasLeftGap,
   onSelectBook,
   onHoverBook,
   onLeaveBook,
@@ -90,7 +88,7 @@ export const BookCover = memo(function BookCover({
     onSelectBook?.(book);
   };
 
-  const palette = !book.coverUrl || imageError ? getSpinePalette(book, volumeNumber, titleIndex) : undefined;
+  const palette = !book.coverUrl || imageError ? getSpinePalette(book, titleIndex) : undefined;
   const displayTitle = truncateTitle(book.title);
   const volLabel = volumeNumber ? `Vol. ${volumeNumber}` : 'Vol. 1';
 

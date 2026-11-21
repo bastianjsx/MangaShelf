@@ -19,6 +19,7 @@ const DEFAULT_BLUE_BOX: Book = {
   coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80',
   spineColor: '#368EAA',
   releaseDate: 'Apr 8, 2021',
+  createdAt: '2021-04-08T00:00:00.000Z',
   description:
     'Taiki Inomata is on the boys badminton team at sports powerhouse Eimei Junior and Senior High. He is in love with Chinatsu Kano, a girl a year above him on the girls basketball team.',
   status: 'reading',
@@ -61,12 +62,7 @@ function getInitialBooks(): Book[] {
 
     // If localStorage contained saved data (even an empty array []), respect it.
     if (parsed !== null) {
-      return parsed.map((b) => {
-        if (b.id === 'blue-box-ao-no-hako' && !b.spineColor) {
-          b.spineColor = '#368EAA';
-        }
-        return b;
-      });
+      return parsed;
     }
   } catch (err) {
     console.error('Failed to load books from localStorage:', err);
@@ -135,6 +131,37 @@ export function useBookshelfStorage() {
     }
   }, [books]);
 
+  const syncToAniList = useCallback(
+    async (
+      bookId: string,
+      payload: {
+        status?: BookStatus;
+        volume?: number;
+        progressVolumes?: number;
+        chapter?: number;
+      }
+    ): Promise<boolean> => {
+      const token = getAniListToken();
+      if (!token || !bookId.startsWith('anilist-')) return true;
+
+      const mediaId = parseInt(bookId.replace('anilist-', ''), 10);
+      if (isNaN(mediaId)) return true;
+
+      setMutationStatus('syncing');
+      setMutationError(null);
+      try {
+        await syncEntryToAniList(token, mediaId, payload);
+        setMutationStatus('synced');
+        return true;
+      } catch (err) {
+        setMutationStatus('error');
+        setMutationError(err instanceof Error ? err.message : 'Failed to sync with AniList');
+        return false;
+      }
+    },
+    []
+  );
+
   const syncRemoteBooks = useCallback((remoteBooks: Book[]) => {
     setBooks((prev) => {
       const existingMap = new Map(prev.map((b) => [b.id, b]));
@@ -153,33 +180,26 @@ export function useBookshelfStorage() {
     });
   }, []);
 
-  const handleAddBook = useCallback(async (newBook: Book): Promise<boolean> => {
-    setBooks((prev) => {
-      if (prev.some((b) => b.id === newBook.id)) {
-        return prev;
-      }
-      return [newBook, ...prev];
-    });
+  const handleAddBook = useCallback(
+    async (newBook: Book): Promise<boolean> => {
+      const preparedBook: Book = {
+        ...newBook,
+        createdAt: newBook.createdAt || new Date().toISOString(),
+      };
 
-    const token = getAniListToken();
-    if (token && newBook.id.startsWith('anilist-')) {
-      const mediaId = parseInt(newBook.id.replace('anilist-', ''), 10);
-      if (!isNaN(mediaId)) {
-        setMutationStatus('syncing');
-        setMutationError(null);
-        try {
-          await syncEntryToAniList(token, mediaId, { status: newBook.status || 'want-to-read' });
-          setMutationStatus('synced');
-          return true;
-        } catch (err) {
-          setMutationStatus('error');
-          setMutationError(err instanceof Error ? err.message : 'Failed to sync with AniList');
-          return false;
+      setBooks((prev) => {
+        if (prev.some((b) => b.id === preparedBook.id)) {
+          return prev;
         }
-      }
-    }
-    return true;
-  }, []);
+        return [preparedBook, ...prev];
+      });
+
+      return syncToAniList(preparedBook.id, {
+        status: preparedBook.status || 'want-to-read',
+      });
+    },
+    [syncToAniList]
+  );
 
   const handleDeleteBook = useCallback((bookId: string) => {
     setBooks((prev) => prev.filter((b) => b.id !== bookId));
@@ -202,28 +222,13 @@ export function useBookshelfStorage() {
     setSortBy('custom');
   }, []);
 
-  const handleUpdateStatus = useCallback(async (bookId: string, status: BookStatus): Promise<boolean> => {
-    setBooks((prev) => prev.map((b) => (b.id === bookId ? { ...b, status } : b)));
-
-    const token = getAniListToken();
-    if (token && bookId.startsWith('anilist-')) {
-      const mediaId = parseInt(bookId.replace('anilist-', ''), 10);
-      if (!isNaN(mediaId)) {
-        setMutationStatus('syncing');
-        setMutationError(null);
-        try {
-          await syncEntryToAniList(token, mediaId, { status });
-          setMutationStatus('synced');
-          return true;
-        } catch (err) {
-          setMutationStatus('error');
-          setMutationError(err instanceof Error ? err.message : 'Failed to sync status with AniList');
-          return false;
-        }
-      }
-    }
-    return true;
-  }, []);
+  const handleUpdateStatus = useCallback(
+    async (bookId: string, status: BookStatus): Promise<boolean> => {
+      setBooks((prev) => prev.map((b) => (b.id === bookId ? { ...b, status } : b)));
+      return syncToAniList(bookId, { status });
+    },
+    [syncToAniList]
+  );
 
   const handleUpdateProgress = useCallback(
     async (
@@ -259,26 +264,20 @@ export function useBookshelfStorage() {
 
       setBooks((prev) => prev.map((b) => (b.id === bookId ? applyProgressUpdate(b) : b)));
 
-      const token = getAniListToken();
-      if (token && bookId.startsWith('anilist-')) {
-        const mediaId = parseInt(bookId.replace('anilist-', ''), 10);
-        if (!isNaN(mediaId)) {
-          setMutationStatus('syncing');
-          setMutationError(null);
-          try {
-            await syncEntryToAniList(token, mediaId, progress);
-            setMutationStatus('synced');
-            return true;
-          } catch (err) {
-            setMutationStatus('error');
-            setMutationError(err instanceof Error ? err.message : 'Failed to sync progress with AniList');
-            return false;
-          }
-        }
-      }
-      return true;
+      // Accurately sync reading progress (volumes read), not physical volumes owned
+      const readVolumeProgress =
+        Array.isArray(progress.readVolumes) && progress.readVolumes.length > 0
+          ? Math.max(...progress.readVolumes)
+          : typeof progress.volume === 'number'
+            ? progress.volume
+            : undefined;
+
+      return syncToAniList(bookId, {
+        chapter: progress.chapter,
+        progressVolumes: readVolumeProgress,
+      });
     },
-    []
+    [syncToAniList]
   );
 
   return {

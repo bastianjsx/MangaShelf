@@ -1,20 +1,21 @@
-import type { Book, ShelfDisplayMode, SortOption } from '../../../types/book';
-import type { StatusFilter } from '../../../components/layout/StatusBar';
+import type { Book, ShelfDisplayMode, SortOption, StatusFilter } from '../../../types/book';
 import {
   getSpinePalette,
   getSpineColorSortScore,
   getBookOwnedVolumes,
+  getBookReadVolumes,
   getVolumeStatus,
 } from '../../../utils/spineUtils';
 
 const EXCLUDED_CATEGORIES = new Set(['manga', 'light novel']);
+const titleCollator = new Intl.Collator(undefined, { sensitivity: 'base' });
 
 export function extractCategories(books: Book[]): string[] {
   const bookCategories = books.flatMap((b) => b.category || []);
   return Array.from(new Set(bookCategories))
     .filter(Boolean)
     .filter((cat) => !EXCLUDED_CATEGORIES.has(cat.toLowerCase().trim()))
-    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    .sort((a, b) => titleCollator.compare(a, b));
 }
 
 export function calculateCategoryCounts(
@@ -50,9 +51,10 @@ export function calculateStatusCounts(
     };
     books.forEach((b) => {
       const owned = getBookOwnedVolumes(b);
+      const readSet = new Set(getBookReadVolumes(b));
       counts.all += owned.length;
       owned.forEach((volNum) => {
-        const st = getVolumeStatus(b, volNum);
+        const st = getVolumeStatus(b, volNum, readSet);
         counts[st] = (counts[st] || 0) + 1;
       });
     });
@@ -91,7 +93,11 @@ export function filterBooks(
     const matchesStatus =
       selectedStatus === 'all' ||
       (shelfMode === 'full-spine'
-        ? getBookOwnedVolumes(book).some((v) => getVolumeStatus(book, v) === selectedStatus)
+        ? (() => {
+            const owned = getBookOwnedVolumes(book);
+            const readSet = new Set(getBookReadVolumes(book));
+            return owned.some((v) => getVolumeStatus(book, v, readSet) === selectedStatus);
+          })()
         : book.status === selectedStatus);
 
     if (matchesStatus) {
@@ -106,13 +112,9 @@ export function sortBooks(books: Book[], sortBy: SortOption): Book[] {
   const list = [...books];
   switch (sortBy) {
     case 'title-asc':
-      return list.sort((a, b) =>
-        a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
-      );
+      return list.sort((a, b) => titleCollator.compare(a.title, b.title));
     case 'title-desc':
-      return list.sort((a, b) =>
-        b.title.localeCompare(a.title, undefined, { sensitivity: 'base' })
-      );
+      return list.sort((a, b) => titleCollator.compare(b.title, a.title));
     case 'recent': {
       const withDates = list.map((book) => ({
         book,
@@ -120,7 +122,7 @@ export function sortBooks(books: Book[], sortBy: SortOption): Book[] {
       }));
       withDates.sort((a, b) => {
         if (a.time !== b.time) return b.time - a.time;
-        return a.book.title.localeCompare(b.book.title, undefined, { sensitivity: 'base' });
+        return titleCollator.compare(a.book.title, b.book.title);
       });
       return withDates.map((item) => item.book);
     }
@@ -133,7 +135,7 @@ export function sortBooks(books: Book[], sortBy: SortOption): Book[] {
         if (a.score !== b.score) {
           return a.score - b.score;
         }
-        return a.book.title.localeCompare(b.book.title, undefined, { sensitivity: 'base' });
+        return titleCollator.compare(a.book.title, b.book.title);
       });
       return withScores.map((item) => item.book);
     }

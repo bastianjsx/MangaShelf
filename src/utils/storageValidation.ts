@@ -33,14 +33,14 @@ export function isValidBook(data: unknown): data is Book {
 export function sanitizeBook(data: unknown): Book | null {
   if (!isValidBook(data)) return null;
 
-  const b = data as Partial<Book>;
+  const b = data;
 
   const sanitized: Book = {
-    id: b.id!.trim(),
-    title: b.title!.trim(),
-    author: b.author!.trim(),
-    category: Array.isArray(b.category) ? b.category.filter((c): c is string => typeof c === 'string') : [],
-    coverUrl: b.coverUrl!.trim(),
+    id: b.id.trim(),
+    title: b.title.trim(),
+    author: b.author.trim(),
+    category: b.category.filter((c): c is string => typeof c === 'string'),
+    coverUrl: b.coverUrl.trim(),
   };
 
   if (b.status && VALID_STATUSES.has(b.status)) {
@@ -115,7 +115,12 @@ export function parseStoredBooks(raw: string | null): Book[] | null {
       return parsed.map(sanitizeBook).filter((b): b is Book => b !== null);
     }
   } catch (err) {
-    console.warn('Storage format corrupted, returning empty shelf fallback:', err);
+    console.warn('Storage format corrupted, archiving raw data to prevent data loss:', err);
+    try {
+      localStorage.setItem(`bookshelf_books_corrupted_${Date.now()}`, raw);
+    } catch {
+      // ignore storage quota error
+    }
     return [];
   }
 

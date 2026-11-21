@@ -1,5 +1,6 @@
 export type ShelfDisplayMode = 'full-cover' | 'full-spine';
 export type BookStatus = 'reading' | 'finished' | 'want-to-read' | 'on-hold' | 'none';
+export type StatusFilter = BookStatus | 'all';
 export type SortOption = 'recent' | 'title-asc' | 'title-desc' | 'color' | 'custom';
 
 export interface Book {

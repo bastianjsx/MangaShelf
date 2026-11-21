@@ -81,6 +81,16 @@ export function App() {
     [deleteBookFromStorage]
   );
 
+  const handleSync = useCallback(() => {
+    if (user) {
+      handleSyncManga(user.id);
+    }
+  }, [user, handleSyncManga]);
+
+  const handleSelectBook = useCallback((b: Book) => {
+    setSelectedBookId(b.id);
+  }, []);
+
   return (
     <div className="min-h-screen px-3 md:px-7 py-5 flex flex-col items-center">
       <main
@@ -106,7 +116,7 @@ export function App() {
           user={user}
           onLoginClick={handleLoginClick}
           onLogout={handleLogout}
-          onSync={() => user && handleSyncManga(user.id)}
+          onSync={handleSync}
           isSyncing={isSyncing}
           totalBooksCount={books.length}
         />
@@ -115,7 +125,7 @@ export function App() {
           shelfMode={shelfMode}
           totalBooksCount={books.length}
           onClearFilter={handleClearAllFilters}
-          onSelectBook={(b: Book) => setSelectedBookId(b.id)}
+          onSelectBook={handleSelectBook}
           onReorderBooks={handleReorderBooks}
           activeStatus={selectedStatus}
         />

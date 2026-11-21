@@ -106,6 +106,7 @@ export function transformAniListMediaToBook(media: AniListMedia): Book {
     description: cleanDescription,
     totalVolumes: media.volumes || undefined,
     status: 'none',
+    createdAt: new Date().toISOString(),
   };
 }
 

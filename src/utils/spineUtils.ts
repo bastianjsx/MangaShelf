@@ -14,6 +14,12 @@ export interface SpineFormat {
   formatLabel: string;
 }
 
+export const DEFAULT_SPINE_FORMAT: SpineFormat = {
+  width: 24,
+  height: 146,
+  formatLabel: 'MANGA',
+};
+
 export function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -81,148 +87,7 @@ export const BOOKSTORE_SOFT_PALETTE: SoftPaletteSwatch[] = [
   { name: 'Sumi Ink', hex: '#373432' },
 ];
 
-
-export const CHROMATIC_SOFT_PALETTE: string[] = [
-  '#A94743', // 1. Muted red (Ref)
-  '#8F3835', // 2. Crimson Matte
-  '#B8583B', // 3. Rust
-  '#C76B52', // 4. Terracotta (Ref)
-  '#B8723C', // 5. Warm Caramel
-  '#D19A42', // 6. Amber (Ref)
-  '#C28938', // 7. Warm Ochre
-  '#C5AA43', // 8. Mustard (Ref)
-  '#8C9A6F', // 9. Warm Matcha
-  '#73835B', // 10. Olive
-  '#82977A', // 11. Sage (Ref)
-  '#477A6A', // 12. Forest (Ref)
-  '#345950', // 13. Deep Spruce
-  '#4A7A7B', // 14. Slate Teal
-  '#6397AD', // 15. Dusty blue (Ref)
-  '#4D6B82', // 16. Slate Blue
-  '#405D78', // 17. Navy (Ref)
-  '#35455E', // 18. Deep Indigo
-  '#655075', // 19. Dusty Violet
-  '#7D4D6E', // 20. Muted Plum
-  '#806888', // 21. Deep Lavender
-  '#B86878', // 22. Dusty Rose
-  '#C7AC88', // 23. Sand (Ref)
-  '#A68C75', // 24. Taupe (Ref)
-  '#8C644B', // 25. Warm Cedar
-  '#E3D5BD', // 26. Cream (Ref)
-  '#ECE3D0', // 27. Warm Ivory
-  '#55514C', // 28. Charcoal (Ref)
-  '#373432', // 29. Sumi Ink
-];
-
-const softPaletteCache = new Map<string, string>();
-
-export function mapToSoftPalette(baseColorHex: string): string {
-  const cleanHex = baseColorHex.trim();
-  const hex = cleanHex.startsWith('#') ? cleanHex : `#${cleanHex}`;
-  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
-    return '#A68C75';
-  }
-
-  const upperHex = hex.toUpperCase();
-  const cached = softPaletteCache.get(upperHex);
-  if (cached) return cached;
-
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
-
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
-  const l1 = (max + min) / 2;
-  let h1 = 0;
-  let s1 = 0;
-
-  if (d !== 0) {
-    s1 = l1 > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h1 = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h1 = (b - r) / d + 2; break;
-      case b: h1 = (r - g) / d + 4; break;
-    }
-    h1 *= 60;
-  }
-
-  if (l1 < 0.18) {
-    return '#373432'; // Sumi Ink
-  }
-  if (l1 > 0.88 && s1 < 0.25) {
-    return '#ECE3D0'; // Warm Ivory
-  }
-  if (s1 < 0.18) {
-    if (l1 > 0.72) return '#E3D5BD'; // Cream
-    if (l1 > 0.58) return '#C7AC88'; // Sand
-    if (l1 > 0.42) return '#A68C75'; // Taupe
-    return '#55514C'; // Charcoal
-  }
-
-  let best = BOOKSTORE_SOFT_PALETTE[0];
-  let minScore = Infinity;
-
-  for (const swatch of BOOKSTORE_SOFT_PALETTE) {
-    const sr = parseInt(swatch.hex.slice(1, 3), 16) / 255;
-    const sg = parseInt(swatch.hex.slice(3, 5), 16) / 255;
-    const sb = parseInt(swatch.hex.slice(5, 7), 16) / 255;
-    const sMax = Math.max(sr, sg, sb);
-    const sMin = Math.min(sr, sg, sb);
-    const sDelta = sMax - sMin;
-    const l2 = (sMax + sMin) / 2;
-    let h2 = 0;
-    let s2 = 0;
-
-    if (sDelta !== 0) {
-      s2 = l2 > 0.5 ? sDelta / (2 - sMax - sMin) : sDelta / (sMax + sMin);
-      switch (sMax) {
-        case sr: h2 = (sg - sb) / sDelta + (sg < sb ? 6 : 0); break;
-        case sg: h2 = (sb - sr) / sDelta + 2; break;
-        case sb: h2 = (sr - sg) / sDelta + 4; break;
-      }
-      h2 *= 60;
-    }
-
-    let dH = Math.abs(h1 - h2);
-    if (dH > 180) dH = 360 - dH;
-
-    const rad = (dH * Math.PI) / 180;
-    const hueDist = (1 - Math.cos(rad)) * 90;
-    const lumDist = Math.abs(l1 - l2) * 35;
-    const satDist = Math.abs(s1 - s2) * 15;
-
-    const totalScore = hueDist + lumDist + satDist;
-    if (totalScore < minScore) {
-      minScore = totalScore;
-      best = swatch;
-    }
-  }
-
-  softPaletteCache.set(upperHex, best.hex);
-  return best.hex;
-}
-
-export function hslToHex(h: number, s: number, l: number): string {
-  const normH = ((h % 360) + 360) % 360;
-  const normS = Math.max(0, Math.min(1, s));
-  const normL = Math.max(0, Math.min(1, l));
-  const c = (1 - Math.abs(2 * normL - 1)) * normS;
-  const x = c * (1 - Math.abs(((normH / 60) % 2) - 1));
-  const m = normL - c / 2;
-  let r = 0;
-  let g = 0;
-  let b = 0;
-  if (normH < 60) { r = c; g = x; }
-  else if (normH < 120) { r = x; g = c; }
-  else if (normH < 180) { g = c; b = x; }
-  else if (normH < 240) { g = x; b = c; }
-  else if (normH < 300) { r = x; b = c; }
-  else { r = c; b = x; }
-  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
+export const CHROMATIC_SOFT_PALETTE: string[] = BOOKSTORE_SOFT_PALETTE.map((s) => s.hex);
 
 export function hexToHsl(h: string): [number, number, number] {
   const clean = h.replace('#', '');
@@ -247,6 +112,82 @@ export function hexToHsl(h: string): [number, number, number] {
   return [hVal, sVal, lVal];
 }
 
+export function hslToHex(h: number, s: number, l: number): string {
+  const normH = ((h % 360) + 360) % 360;
+  const normS = Math.max(0, Math.min(1, s));
+  const normL = Math.max(0, Math.min(1, l));
+  const c = (1 - Math.abs(2 * normL - 1)) * normS;
+  const x = c * (1 - Math.abs(((normH / 60) % 2) - 1));
+  const m = normL - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (normH < 60) { r = c; g = x; }
+  else if (normH < 120) { r = x; g = c; }
+  else if (normH < 180) { g = c; b = x; }
+  else if (normH < 240) { g = x; b = c; }
+  else if (normH < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+const PRECOMPUTED_SWATCHES = BOOKSTORE_SOFT_PALETTE.map((swatch) => {
+  const [h, s, l] = hexToHsl(swatch.hex);
+  return { hex: swatch.hex, h, s, l };
+});
+
+const softPaletteCache = new Map<string, string>();
+
+export function mapToSoftPalette(baseColorHex: string): string {
+  const cleanHex = baseColorHex.trim();
+  const hex = cleanHex.startsWith('#') ? cleanHex : `#${cleanHex}`;
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+    return '#A68C75';
+  }
+
+  const upperHex = hex.toUpperCase();
+  const cached = softPaletteCache.get(upperHex);
+  if (cached) return cached;
+
+  const [h1, s1, l1] = hexToHsl(hex);
+
+  if (l1 < 0.18) {
+    return '#373432'; // Sumi Ink
+  }
+  if (l1 > 0.88 && s1 < 0.25) {
+    return '#ECE3D0'; // Warm Ivory
+  }
+  if (s1 < 0.18) {
+    if (l1 > 0.72) return '#E3D5BD'; // Cream
+    if (l1 > 0.58) return '#C7AC88'; // Sand
+    if (l1 > 0.42) return '#A68C75'; // Taupe
+    return '#55514C'; // Charcoal
+  }
+
+  let bestHex = PRECOMPUTED_SWATCHES[0].hex;
+  let minScore = Infinity;
+
+  for (const swatch of PRECOMPUTED_SWATCHES) {
+    let dH = Math.abs(h1 - swatch.h);
+    if (dH > 180) dH = 360 - dH;
+
+    const rad = (dH * Math.PI) / 180;
+    const hueDist = (1 - Math.cos(rad)) * 90;
+    const lumDist = Math.abs(l1 - swatch.l) * 35;
+    const satDist = Math.abs(s1 - swatch.s) * 15;
+
+    const totalScore = hueDist + lumDist + satDist;
+    if (totalScore < minScore) {
+      minScore = totalScore;
+      bestHex = swatch.hex;
+    }
+  }
+
+  softPaletteCache.set(upperHex, bestHex);
+  return bestHex;
+}
+
 const surfaceGradientCache = new Map<string, string>();
 
 export function getSpineSurfaceGradient(colorHex: string): string {
@@ -263,7 +204,6 @@ export function getSpineSurfaceGradient(colorHex: string): string {
 
 export function getSpinePalette(
   book: Book,
-  _volumeNumber?: number,
   titleIndex?: number,
   shelfBaseColor?: string
 ): SpinePalette {
@@ -299,7 +239,7 @@ export function getSpinePalette(
 }
 
 export function getSpineFormat(_book?: Book): SpineFormat {
-  return { width: 24, height: 146, formatLabel: 'MANGA' };
+  return DEFAULT_SPINE_FORMAT;
 }
 
 export function getSpineVolumeInfo(book: Book, volumeNumber?: number): { badgeText: string; tooltipText: string } {
@@ -326,48 +266,24 @@ export function getSpineVolumeInfo(book: Book, volumeNumber?: number): { badgeTe
 
 export function getSpineColorSortScore(hex?: string): number {
   if (!hex) return 5000;
-  let c = hex.replace('#', '').trim();
-  if (c.length === 3) {
-    c = c.split('').map((char) => char + char).join('');
-  }
-  if (c.length !== 6) return 5000;
+  const clean = hex.trim();
+  if (!/^#[0-9A-Fa-f]{6}$/.test(clean)) return 5000;
 
-  const r = parseInt(c.slice(0, 2), 16) / 255;
-  const g = parseInt(c.slice(2, 4), 16) / 255;
-  const b = parseInt(c.slice(4, 6), 16) / 255;
+  const [h, s, l] = hexToHsl(clean);
 
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return 5000;
-
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
-  const l = (max + min) / 2;
-
-  if (l >= 0.88 || (delta < 0.08 && l > 0.80)) {
+  if (l >= 0.88 || (s < 0.08 && l > 0.80)) {
     return 100 + (1 - l) * 50;
   }
 
-  if (l <= 0.16 || (delta < 0.08 && l < 0.25)) {
+  if (l <= 0.16 || (s < 0.08 && l < 0.25)) {
     return 9000 + l * 100;
   }
 
-  if (delta < 0.10) {
+  if (s < 0.10) {
     return 8000 + (1 - l) * 100;
   }
 
-  let h = 0;
-  if (delta !== 0) {
-    if (max === r) {
-      h = ((g - b) / delta + (g < b ? 6 : 0)) % 6;
-    } else if (max === g) {
-      h = (b - r) / delta + 2;
-    } else {
-      h = (r - g) / delta + 4;
-    }
-    h *= 60;
-  }
-
-  const isBrown = h >= 15 && h <= 45 && l <= 0.45 && delta <= 0.55;
+  const isBrown = h >= 15 && h <= 45 && l <= 0.45 && s <= 0.55;
   if (isBrown) {
     return 7000 + (1 - l) * 100;
   }
@@ -411,9 +327,13 @@ export function getBookReadVolumes(book: Book): number[] {
   return [];
 }
 
-export function getVolumeStatus(book: Book, volNum: number): Exclude<BookStatus, 'none'> {
-  const readList = getBookReadVolumes(book);
-  if (readList.includes(volNum)) {
+export function getVolumeStatus(
+  book: Book,
+  volNum: number,
+  readSet?: Set<number>
+): Exclude<BookStatus, 'none'> {
+  const isRead = readSet ? readSet.has(volNum) : getBookReadVolumes(book).includes(volNum);
+  if (isRead) {
     return 'finished';
   }
 
@@ -431,4 +351,3 @@ export function getVolumeStatus(book: Book, volNum: number): Exclude<BookStatus,
 
   return 'want-to-read';
 }
-

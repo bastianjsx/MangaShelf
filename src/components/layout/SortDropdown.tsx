@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import type { SortOption } from '../../types/book';
+import { useDismiss } from '../../hooks/useDismiss';
 
 interface SortDropdownProps {
   sortBy: SortOption;
@@ -17,30 +18,9 @@ const SORT_OPTIONS: { id: SortOption; label: string; shortLabel: string }[] = [
 export function SortDropdown({ sortBy, onSelectSort }: SortDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const handleClose = useCallback(() => setIsOpen(false), []);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen]);
+  useDismiss(dropdownRef, handleClose, isOpen);
 
   const activeOption = SORT_OPTIONS.find((opt) => opt.id === sortBy) ?? SORT_OPTIONS[0];
   const isCustomSort = sortBy !== 'title-asc' && sortBy !== 'recent';

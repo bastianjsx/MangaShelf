@@ -1,6 +1,6 @@
 import type { Book, BookStatus } from '../types/book';
 import { extractAniListAuthor } from './anilist';
-import { requestAniListGraphQL } from './anilistClient';
+import { requestAniListGraphQL, AniListAuthError } from './anilistClient';
 
 export interface AniListUser {
   id: number;
@@ -15,27 +15,64 @@ const TOKEN_STORAGE_KEY = 'anilist_oauth_token';
 const USER_STORAGE_KEY = 'anilist_oauth_user';
 const CLIENT_ID_STORAGE_KEY = 'anilist_client_id';
 
+export const ANILIST_STATUS_TO_BOOK_STATUS: Record<string, BookStatus> = {
+  CURRENT: 'reading',
+  COMPLETED: 'finished',
+  PLANNING: 'want-to-read',
+  PAUSED: 'on-hold',
+  DROPPED: 'on-hold',
+  REPEATING: 'reading',
+};
+
+export const BOOK_STATUS_TO_ANILIST_STATUS: Record<BookStatus, string | undefined> = {
+  reading: 'CURRENT',
+  finished: 'COMPLETED',
+  'want-to-read': 'PLANNING',
+  'on-hold': 'PAUSED',
+  none: undefined,
+};
+
 export function getAniListClientId(): string {
   const envId = import.meta.env.VITE_ANILIST_CLIENT_ID as string | undefined;
   if (envId && envId.trim()) return envId.trim();
-  return localStorage.getItem(CLIENT_ID_STORAGE_KEY)?.trim() || '';
+  try {
+    return localStorage.getItem(CLIENT_ID_STORAGE_KEY)?.trim() || '';
+  } catch {
+    return '';
+  }
 }
 
 export function setAniListClientId(clientId: string): void {
-  localStorage.setItem(CLIENT_ID_STORAGE_KEY, clientId.trim());
+  try {
+    localStorage.setItem(CLIENT_ID_STORAGE_KEY, clientId.trim());
+  } catch {
+    // ignore
+  }
 }
 
 export function getAniListToken(): string | null {
-  return localStorage.getItem(TOKEN_STORAGE_KEY);
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function setAniListToken(token: string): void {
-  localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
+  try {
+    localStorage.setItem(TOKEN_STORAGE_KEY, token.trim());
+  } catch {
+    // ignore
+  }
 }
 
 export function clearAniListAuth(): void {
-  localStorage.removeItem(TOKEN_STORAGE_KEY);
-  localStorage.removeItem(USER_STORAGE_KEY);
+  try {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(USER_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export function getCachedAniListUser(): AniListUser | null {
@@ -53,9 +90,9 @@ export function handleOAuthRedirect(): string | null {
   const hash = window.location.hash;
   if (!hash) return null;
 
-  const match = hash.match(/access_token=([^&]+)/);
-  if (match) {
-    const token = decodeURIComponent(match[1]);
+  const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+  const token = params.get('access_token');
+  if (token) {
     setAniListToken(token);
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
     return token;
@@ -88,16 +125,20 @@ export async function fetchCurrentAniListUser(token: string): Promise<AniListUse
   `;
 
   try {
-    const data = await requestAniListGraphQL<{ Viewer?: AniListUser }>(query, undefined, token);
+    const data = await requestAniListGraphQL<{ Viewer?: AniListUser }>(query, undefined, { token });
     const viewer = data.Viewer;
     if (!viewer) {
       throw new Error('Failed to retrieve user profile from AniList.');
     }
 
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(viewer));
+    try {
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(viewer));
+    } catch {
+      // ignore
+    }
     return viewer;
   } catch (err) {
-    if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+    if (err instanceof AniListAuthError) {
       clearAniListAuth();
       throw new Error('AniList session has expired. Please log in again.');
     }
@@ -193,11 +234,10 @@ export async function fetchUserMangaCollection(userId: number, token?: string): 
   const data = await requestAniListGraphQL<{ MediaListCollection?: { lists?: AniListMediaList[] } }>(
     query,
     { userId },
-    token
+    { token }
   );
 
   const lists: AniListMediaList[] = data.MediaListCollection?.lists || [];
-
   const books: Book[] = [];
   const seenMediaIds = new Set<number>();
 
@@ -225,11 +265,7 @@ export async function fetchUserMangaCollection(userId: number, token?: string): 
       const rawDescription = media.description || '';
       const cleanDescription = rawDescription.replace(/<[^>]*>/g, '').trim();
 
-      let status: BookStatus = 'none';
-      if (entry.status === 'CURRENT') status = 'reading';
-      else if (entry.status === 'COMPLETED') status = 'finished';
-      else if (entry.status === 'PLANNING') status = 'want-to-read';
-      else if (entry.status === 'PAUSED') status = 'on-hold';
+      const status: BookStatus = ANILIST_STATUS_TO_BOOK_STATUS[entry.status] || 'none';
 
       books.push({
         id: `anilist-${media.id}`,
@@ -257,15 +293,12 @@ export async function syncEntryToAniList(
   updates: {
     status?: BookStatus;
     volume?: number;
+    progressVolumes?: number;
     volumesOwned?: number;
     chapter?: number;
   }
 ): Promise<void> {
-  let anilistStatus: string | undefined;
-  if (updates.status === 'reading') anilistStatus = 'CURRENT';
-  else if (updates.status === 'finished') anilistStatus = 'COMPLETED';
-  else if (updates.status === 'want-to-read') anilistStatus = 'PLANNING';
-  else if (updates.status === 'on-hold') anilistStatus = 'PAUSED';
+  const anilistStatus = updates.status ? BOOK_STATUS_TO_ANILIST_STATUS[updates.status] : undefined;
 
   const mutation = `
     mutation (
@@ -289,18 +322,27 @@ export async function syncEntryToAniList(
   `;
 
   try {
+    const readVolumesToSend = typeof updates.progressVolumes === 'number'
+      ? updates.progressVolumes
+      : typeof updates.volume === 'number'
+        ? updates.volume
+        : undefined;
+
     await requestAniListGraphQL(
       mutation,
       {
         mediaId,
         ...(anilistStatus && { status: anilistStatus }),
         ...(typeof updates.chapter === 'number' && { progress: updates.chapter }),
-        ...(typeof updates.volume === 'number' && { progressVolumes: updates.volume }),
+        ...(typeof readVolumesToSend === 'number' && { progressVolumes: readVolumesToSend }),
       },
-      token
+      { token }
     );
   } catch (err) {
-    console.warn('Network error while syncing changes to AniList:', err);
+    if (err instanceof AniListAuthError) {
+      clearAniListAuth();
+    }
+    console.warn('Error while syncing changes to AniList:', err);
     throw err;
   }
 }

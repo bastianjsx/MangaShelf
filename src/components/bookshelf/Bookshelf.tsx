@@ -4,7 +4,7 @@ import type { StatusFilter } from '../layout/StatusBar';
 import { BookCover } from '../book/BookCover';
 import { BookSpine } from '../book/BookSpine';
 import { EmptyState } from '../EmptyState';
-import { getSpinePalette, getBookOwnedVolumes, getVolumeStatus } from '../../utils/spineUtils';
+import { getSpinePalette, getBookOwnedVolumes, getBookReadVolumes, getVolumeStatus } from '../../utils/spineUtils';
 
 interface BookshelfProps {
   books: Book[];
@@ -18,6 +18,7 @@ interface BookshelfProps {
 
 interface ShelfItem {
   key: string;
+  kind: 'cover' | 'spine';
   book?: Book;
   volumeNumber?: number;
   titleIndex?: number;
@@ -89,7 +90,7 @@ function BookHoverCard({ hovered }: { hovered: HoveredBookState }) {
   const statusInfo = derivedStatus ? STATUS_BADGE_MAP[derivedStatus] : null;
   const volLabel =
     volumeNumber != null ? `Vol. ${volumeNumber}` : formatHoverVolumeLabel(book);
-  const palette = getSpinePalette(book, volumeNumber, hovered.titleIndex);
+  const palette = getSpinePalette(book, hovered.titleIndex);
 
   return (
     <div
@@ -160,6 +161,7 @@ export function Bookshelf({
 }: BookshelfProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [prevFilterKey, setPrevFilterKey] = useState(`${shelfMode}-${activeStatus}`);
+
   if (prevFilterKey !== `${shelfMode}-${activeStatus}`) {
     setPrevFilterKey(`${shelfMode}-${activeStatus}`);
     setCurrentPage(1);
@@ -211,9 +213,10 @@ export function Bookshelf({
     for (let titleIndex = 0; titleIndex < books.length; titleIndex++) {
       const book = books[titleIndex];
       const allOwnedVolumes = getBookOwnedVolumes(book);
+      const readSet = new Set(getBookReadVolumes(book));
       const volumeNumbers =
         shelfMode === 'full-spine' && activeStatus && activeStatus !== 'all'
-          ? allOwnedVolumes.filter((v) => getVolumeStatus(book, v) === activeStatus)
+          ? allOwnedVolumes.filter((v) => getVolumeStatus(book, v, readSet) === activeStatus)
           : allOwnedVolumes;
 
       if (volumeNumbers.length === 0) {
@@ -225,6 +228,7 @@ export function Bookshelf({
       if (shelfMode === 'full-cover') {
         items.push({
           key: `cover-${book.id}-vol-${lowestVol}`,
+          kind: 'cover',
           book,
           volumeNumber: lowestVol,
           titleIndex,
@@ -233,6 +237,7 @@ export function Bookshelf({
         for (const v of volumeNumbers) {
           items.push({
             key: `spine-${book.id}-vol-${v}`,
+            kind: 'spine',
             book,
             volumeNumber: v,
             titleIndex,
@@ -247,7 +252,7 @@ export function Bookshelf({
     const isSpineMode = shelfMode === 'full-spine';
 
     for (const item of items) {
-      const currIsCover = Boolean(item.key.startsWith('cover-'));
+      const currIsCover = item.kind === 'cover';
       const baseWidth = currIsCover ? 100 : SPINE_SLOT_WIDTH;
       const minGap = currentShelf.length === 0 ? 0 : (currIsCover ? (isSpineMode ? 0 : 12) : 0);
       const additionalWidth = baseWidth + minGap;
@@ -364,6 +369,18 @@ export function Bookshelf({
           <div className="flex-1 flex flex-col min-w-0 relative">
             {currentTiers.map((shelfItems, tierIndex) => {
               const isLastTier = tierIndex === currentTiers.length - 1;
+              const isPureCoverRow =
+                shelfMode === 'full-cover' &&
+                shelfItems.every((item) => item.kind === 'cover');
+              const isFullCoverRow =
+                isPureCoverRow && shelfItems.length >= maxCoversPerRow;
+              const rowJustifyClass = isFullCoverRow
+                ? 'justify-between'
+                : isPureCoverRow
+                  ? 'justify-start'
+                  : 'justify-start gap-0';
+              const rowGapStyle =
+                !isFullCoverRow && isPureCoverRow ? { gap: `${fullRowCoverGap}px` } : undefined;
 
               return (
                 <div
@@ -379,67 +396,45 @@ export function Bookshelf({
                     <div className="absolute inset-y-0 right-0 w-2 bg-linear-to-l from-[#2d1204]/20 via-[#2d1204]/06 to-transparent pointer-events-none z-15" />
 
                     <div className="w-full relative z-20 pt-4 px-2 md:px-3 mb-0 overflow-hidden">
-                      {(() => {
-                        const isPureCoverRow =
-                          shelfMode === 'full-cover' &&
-                          shelfItems.every((item) => item.key.startsWith('cover-'));
-                        const isFullCoverRow =
-                          isPureCoverRow && shelfItems.length >= maxCoversPerRow;
+                      <div
+                        className={`flex flex-nowrap items-end w-full ${rowJustifyClass}`}
+                        style={rowGapStyle}
+                      >
+                        {shelfItems.map((item) => {
+                          const currIsCover = item.kind === 'cover';
 
-                        return (
-                          <div
-                            className={`flex flex-nowrap items-end w-full ${
-                              isFullCoverRow
-                                ? 'justify-between'
-                                : isPureCoverRow
-                                  ? 'justify-start'
-                                  : 'justify-start gap-0'
-                            }`}
-                            style={
-                              !isFullCoverRow && isPureCoverRow
-                                ? { gap: `${fullRowCoverGap}px` }
-                                : undefined
-                            }
-                          >
-                            {shelfItems.map((item) => {
-                              const currIsCover = Boolean(
-                                item.key.startsWith('cover-')
-                              );
+                          if (currIsCover && item.book) {
+                            return (
+                              <BookCover
+                                key={item.key}
+                                book={item.book}
+                                volumeNumber={item.volumeNumber}
+                                titleIndex={item.titleIndex}
+                                onSelectBook={handleSelectBookFromShelf}
+                                onHoverBook={handleHoverBook}
+                                onLeaveBook={handleLeaveBook}
+                                onReorderBooks={onReorderBooks}
+                              />
+                            );
+                          }
 
-                              if (currIsCover && item.book) {
-                                return (
-                                  <BookCover
-                                    key={item.key}
-                                    book={item.book}
-                                    volumeNumber={item.volumeNumber}
-                                    titleIndex={item.titleIndex}
-                                    onSelectBook={handleSelectBookFromShelf}
-                                    onHoverBook={handleHoverBook}
-                                    onLeaveBook={handleLeaveBook}
-                                    onReorderBooks={onReorderBooks}
-                                  />
-                                );
-                              }
+                          if (item.book) {
+                            return (
+                              <BookSpine
+                                key={item.key}
+                                book={item.book}
+                                volumeNumber={item.volumeNumber}
+                                titleIndex={item.titleIndex}
+                                onSelectBook={handleSelectBookFromShelf}
+                                onHoverBook={handleHoverBook}
+                                onLeaveBook={handleLeaveBook}
+                              />
+                            );
+                          }
 
-                              if (item.book) {
-                                return (
-                                  <BookSpine
-                                    key={item.key}
-                                    book={item.book}
-                                    volumeNumber={item.volumeNumber}
-                                    titleIndex={item.titleIndex}
-                                    onSelectBook={handleSelectBookFromShelf}
-                                    onHoverBook={handleHoverBook}
-                                    onLeaveBook={handleLeaveBook}
-                                  />
-                                );
-                              }
-
-                              return null;
-                            })}
-                          </div>
-                        );
-                      })()}
+                          return null;
+                        })}
+                      </div>
                     </div>
 
                     <div className="shelf-plank-3d relative z-10 w-full">

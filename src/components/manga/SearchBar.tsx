@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Book } from '../../types/book';
 import { searchAniList } from '../../services/anilist';
+import { useDismiss } from '../../hooks/useDismiss';
 
 interface SearchBarProps {
   onAddBook: (book: Book) => void;
@@ -13,29 +14,10 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
+  const handleClose = useCallback(() => setIsOpen(false), []);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
+  useDismiss(containerRef, handleClose, isOpen);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -72,7 +54,6 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
 
   const handleAdd = (book: Book) => {
     onAddBook(book);
-    setAddedIds((prev) => new Set(prev).add(book.id));
   };
 
   const handleClear = () => {
@@ -106,12 +87,15 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
           onChange={(e) => {
             const val = e.target.value;
             setQuery(val);
-            if (!val.trim()) {
+            const trimmed = val.trim();
+            if (trimmed.length < 2) {
               setResults([]);
               setSearched(false);
               setLoading(false);
-              setIsOpen(false);
-            } else if (val.trim().length >= 2) {
+              if (!trimmed) {
+                setIsOpen(false);
+              }
+            } else {
               setIsOpen(true);
             }
           }}
@@ -164,28 +148,8 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
       {isOpen && (query.trim().length >= 2 || results.length > 0) && (
         <div className="absolute right-0 top-full mt-2 w-full sm:w-88 md:w-96 bg-shell-bg border border-shell-border rounded-xl shadow-[0_20px_48px_rgba(45,25,10,0.28),0_4px_12px_rgba(0,0,0,0.1)] z-100 overflow-hidden">
           {loading && results.length === 0 ? (
-            <div className="py-6 px-4 text-center text-xs text-text-secondary flex items-center justify-center gap-2">
-              <svg
-                className="animate-spin w-4 h-4 text-plank-edge"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                />
-              </svg>
-              <span>Searching...</span>
+            <div className="py-6 px-4 text-center text-xs text-text-secondary animate-pulse">
+              Searching manga...
             </div>
           ) : results.length > 0 ? (
             <div>
@@ -195,7 +159,7 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
               </div>
               <ul className="max-h-80 overflow-y-auto no-scrollbar divide-y divide-guide-line/50">
                 {results.map((book) => {
-                  const isAdded = existingBookIds.has(book.id) || addedIds.has(book.id);
+                  const isAdded = existingBookIds.has(book.id);
                   return (
                     <li
                       key={book.id}

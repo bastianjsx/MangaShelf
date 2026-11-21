@@ -40,13 +40,8 @@ export interface RequestOptions {
 export async function requestAniListGraphQL<T>(
   query: string,
   variables?: Record<string, unknown>,
-  optionsOrToken?: RequestOptions | string | null
+  options: RequestOptions = {}
 ): Promise<T> {
-  const options: RequestOptions =
-    typeof optionsOrToken === 'string'
-      ? { token: optionsOrToken }
-      : optionsOrToken || {};
-
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -85,7 +80,13 @@ export async function requestAniListGraphQL<T>(
     throw new AniListError(`AniList error: ${res.status} ${res.statusText}`, res.status);
   }
 
-  const json = (await res.json()) as GraphQLResponse<T>;
+  let json: GraphQLResponse<T>;
+  try {
+    json = (await res.json()) as GraphQLResponse<T>;
+  } catch {
+    throw new AniListError('Failed to parse AniList response as JSON.', res.status);
+  }
+
   if (json.errors && json.errors.length > 0) {
     throw new AniListError(json.errors[0]?.message || 'GraphQL error occurred.');
   }
