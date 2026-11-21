@@ -34,7 +34,7 @@ export const BookSpine = memo(function BookSpine({
     onSelectBook?.(book);
   };
 
-  const palette = getSpinePalette(book, titleIndex);
+  const palette = getSpinePalette(book, titleIndex, undefined, volumeNumber);
   const format = getSpineFormat(book);
   const volumeInfo = getSpineVolumeInfo(book, volumeNumber);
   const displayTitle = getSpineDisplayTitle(book.title);

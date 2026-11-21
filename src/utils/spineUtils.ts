@@ -233,66 +233,93 @@ export function getColorFamily(hex: string): ColorFamily {
   return 'neutral';
 }
 
-export function mapToSoftPalette(baseColorHex: string): string {
+export interface SpineColorContext {
+  title?: string;
+  titleIndex?: number;
+  volumeNumber?: number;
+}
+
+export function mapToSoftPalette(
+  baseColorHex: string,
+  context?: SpineColorContext
+): string {
   const cleanHex = baseColorHex.trim();
   const hex = cleanHex.startsWith('#') ? cleanHex : `#${cleanHex}`;
   if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
     return FAMILY_DEFAULTS.neutral;
   }
 
-  const upperHex = hex.toUpperCase();
-  const cached = softPaletteCache.get(upperHex);
+  const cacheKey = context
+    ? `${hex.toUpperCase()}_${context.title || ''}_${context.titleIndex ?? ''}_${context.volumeNumber ?? ''}`
+    : hex.toUpperCase();
+
+  const cached = softPaletteCache.get(cacheKey);
   if (cached) return cached;
 
-  const [, , l] = hexToHsl(hex);
+  const [srcH, , srcL] = hexToHsl(hex);
   const family = getColorFamily(hex);
 
+  let selectedHex: string;
+
   if (family === 'neutral') {
-    let neutralHex: string;
-    if (l < 0.28) {
-      neutralHex = '#373432'; // Sumi Ink
-    } else if (l < 0.48) {
-      neutralHex = '#55514C'; // Charcoal
-    } else if (l > 0.80) {
-      neutralHex = '#ECE3D0'; // Warm Ivory
-    } else if (l > 0.65) {
-      neutralHex = '#E3D5BD'; // Cream
+    if (srcL < 0.28) {
+      selectedHex = '#373432'; // Sumi Ink
+    } else if (srcL < 0.48) {
+      selectedHex = '#55514C'; // Charcoal
+    } else if (srcL > 0.80) {
+      selectedHex = '#ECE3D0'; // Warm Ivory
+    } else if (srcL > 0.65) {
+      selectedHex = '#E3D5BD'; // Cream
     } else {
-      neutralHex = '#A68C75'; // Taupe
+      selectedHex = '#A68C75'; // Taupe
     }
-    softPaletteCache.set(upperHex, neutralHex);
-    return neutralHex;
-  }
+  } else {
+    const familySwatches = PRECOMPUTED_SWATCHES.filter((sw) => sw.family === family);
+    if (familySwatches.length === 0) {
+      selectedHex = FAMILY_DEFAULTS[family] || FAMILY_DEFAULTS.neutral;
+    } else {
+      const titleHash = hashString(context?.title || '') ^ ((context?.titleIndex ?? 0) * 31);
 
-  const familySwatches = PRECOMPUTED_SWATCHES.filter((sw) => sw.family === family);
-  if (familySwatches.length === 0) {
-    const defaultHex = FAMILY_DEFAULTS[family] || FAMILY_DEFAULTS.neutral;
-    softPaletteCache.set(upperHex, defaultHex);
-    return defaultHex;
-  }
+      // Score swatches in the family by matching source hue, target spine depth (0.38), and priority
+      const candidates = [...familySwatches].sort((a, b) => {
+        let dHa = Math.abs(srcH - a.h);
+        if (dHa > 180) dHa = 360 - dHa;
+        let dHb = Math.abs(srcH - b.h);
+        if (dHb > 180) dHb = 360 - dHb;
 
-  const [h] = hexToHsl(hex);
-  let bestHex = familySwatches[0].hex;
-  let minScore = Infinity;
+        const scoreA = (dHa / 180) * 30 + Math.abs(a.l - 0.38) * 45 + a.priority * 8;
+        const scoreB = (dHb / 180) * 30 + Math.abs(b.l - 0.38) * 45 + b.priority * 8;
+        return scoreA - scoreB;
+      });
 
-  for (const sw of familySwatches) {
-    let dH = Math.abs(h - sw.h);
-    if (dH > 180) dH = 360 - dH;
-
-    const targetL = 0.38;
-    const lumScore = Math.abs(sw.l - targetL) * 35;
-    const hueScore = (dH / 180) * 40;
-    const priorityScore = sw.priority * 5;
-
-    const score = hueScore + lumScore + priorityScore;
-    if (score < minScore) {
-      minScore = score;
-      bestHex = sw.hex;
+      // When context is provided, alternate among top matching swatches based on titleHash
+      const candidateIndex = context
+        ? Math.abs(titleHash) % Math.min(candidates.length, 3)
+        : 0;
+      selectedHex = candidates[candidateIndex]?.hex || candidates[0].hex;
     }
   }
 
-  softPaletteCache.set(upperHex, bestHex);
-  return bestHex;
+  // Modulate shade per title and per volume so titles sharing the same color family
+  // (e.g. multiple blue mangas) get distinct darker/lighter shades:
+  if (context?.title || typeof context?.titleIndex === 'number' || typeof context?.volumeNumber === 'number') {
+    const titleHash = hashString(context.title || '') ^ ((context.titleIndex ?? 0) * 17);
+    // Subtle title lightness shift: -0.04 to +0.04
+    const titleLStep = ((Math.abs(titleHash) % 5) - 2) * 0.02;
+
+    // Subtle volume micro-shift between volumes of the same title
+    const volLStep =
+      typeof context.volumeNumber === 'number' && context.volumeNumber > 0
+        ? (((context.volumeNumber * 7) % 5) - 2) * 0.007
+        : 0;
+
+    const [h, s, l] = hexToHsl(selectedHex);
+    const modulatedL = Math.max(0.18, Math.min(0.65, l + titleLStep + volLStep));
+    selectedHex = hslToHex(h, s, modulatedL);
+  }
+
+  softPaletteCache.set(cacheKey, selectedHex);
+  return selectedHex;
 }
 
 const surfaceGradientCache = new Map<string, string>();
@@ -312,19 +339,27 @@ export function getSpineSurfaceGradient(colorHex: string): string {
 export function getSpinePalette(
   book: Book,
   titleIndex?: number,
-  shelfBaseColor?: string
+  shelfBaseColor?: string,
+  volumeNumber?: number
 ): SpinePalette {
   const rawColor = (shelfBaseColor || book.spineColor)?.trim();
   const hex = rawColor ? (rawColor.startsWith('#') ? rawColor : `#${rawColor}`) : '';
   const hasValidHex = /^#[0-9A-Fa-f]{6}$/.test(hex) && hex.toUpperCase() !== '#8B5A2B';
 
+  const context: SpineColorContext = {
+    title: book.title,
+    titleIndex,
+    volumeNumber,
+  };
+
   let titleColor: string;
   if (hasValidHex) {
-    titleColor = mapToSoftPalette(hex);
+    titleColor = mapToSoftPalette(hex, context);
   } else {
     const offset = typeof titleIndex === 'number' ? titleIndex : 0;
     const colorIndex = (14 + offset) % CHROMATIC_SOFT_PALETTE.length;
-    titleColor = CHROMATIC_SOFT_PALETTE[colorIndex];
+    const fallbackColor = CHROMATIC_SOFT_PALETTE[colorIndex];
+    titleColor = mapToSoftPalette(fallbackColor, context);
   }
 
   const surfaceGradient = getSpineSurfaceGradient(titleColor);

@@ -90,7 +90,7 @@ function BookHoverCard({ hovered }: { hovered: HoveredBookState }) {
   const statusInfo = derivedStatus ? STATUS_BADGE_MAP[derivedStatus] : null;
   const volLabel =
     volumeNumber != null ? `Vol. ${volumeNumber}` : formatHoverVolumeLabel(book);
-  const palette = getSpinePalette(book, hovered.titleIndex);
+  const palette = getSpinePalette(book, hovered.titleIndex, undefined, hovered.volumeNumber);
 
   return (
     <div

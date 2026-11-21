@@ -41,6 +41,24 @@ describe('spineUtils', () => {
     assert.strictEqual(mapToSoftPalette('#8BC9E8'), '#405D78');
   });
 
+  it('differentiates shades for different titles with the same cover color', () => {
+    const blueCoverHex = '#8BC9E8';
+    const titleAColor = mapToSoftPalette(blueCoverHex, { title: 'Blue Box', titleIndex: 0 });
+    const titleBColor = mapToSoftPalette(blueCoverHex, { title: 'Grand Blue', titleIndex: 1 });
+    // Both are in the blue family, but each title has a distinct shade of navy
+    assert.strictEqual(getColorFamily(titleAColor), 'blue');
+    assert.strictEqual(getColorFamily(titleBColor), 'blue');
+    assert.notStrictEqual(titleAColor, titleBColor);
+  });
+
+  it('provides subtle volume nuance across volumes of the same series', () => {
+    const vol1Color = mapToSoftPalette('#8BC9E8', { title: 'Blue Box', volumeNumber: 1 });
+    const vol2Color = mapToSoftPalette('#8BC9E8', { title: 'Blue Box', volumeNumber: 2 });
+    assert.strictEqual(getColorFamily(vol1Color), 'blue');
+    assert.strictEqual(getColorFamily(vol2Color), 'blue');
+    assert.notStrictEqual(vol1Color, vol2Color);
+  });
+
   it('getBookOwnedVolumes decouples volume from ownedVolumes', () => {
     const bookWithReadProgressOnly = {
       id: 'test-1',
