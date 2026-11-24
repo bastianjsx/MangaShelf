@@ -6,11 +6,7 @@ MangaShelf is an interactive digital bookshelf that allows users to organize the
 
 The project focuses on combining practical collection-management features with a visual bookshelf interface.
 
-## Preview
-
-<!-- Add a screenshot or GIF of the application here.
-     Example: <img src="docs/images/mangashelf-preview.png" alt="MangaShelf preview" width="100%">
--->
+[![Live Demo](https://img.shields.io/badge/Visit-Live_Demo-2EA44F?style=for-the-badge&logo=vercel&logoColor=white)](https://manga-shelf-bas.vercel.app/)
 
 ## Features
 
