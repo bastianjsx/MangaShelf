@@ -4,10 +4,11 @@ import {
   hashString,
   hexToHsl,
   getBookOwnedVolumes,
+  getBookReadVolumes,
   getColorFamily,
   mapToSoftPalette,
 } from './spineUtils.ts';
-import { migrateBookData, sanitizeBook, isValidPositiveInteger } from './storageValidation.ts';
+import { migrateBookData, sanitizeBook, isValidNonNegativeInteger, isValidPositiveInteger } from './storageValidation.ts';
 
 describe('spineUtils', () => {
   it('hashString handles -2147483648 boundary safely', () => {
@@ -71,17 +72,70 @@ describe('spineUtils', () => {
 
     const owned = getBookOwnedVolumes(bookWithReadProgressOnly);
     assert.deepStrictEqual(owned, [1]);
+
+    const bookWithSelectedVolumes = {
+      id: 'test-owned-1',
+      title: 'Test Manga',
+      author: 'Author',
+      category: ['Manga'],
+      coverUrl: '',
+      ownedVolumes: [2, 5, 8],
+    };
+    assert.deepStrictEqual(getBookOwnedVolumes(bookWithSelectedVolumes), [2, 5, 8]);
+
+    const bookWithEmptyOwnedVolumes = {
+      id: 'test-owned-0',
+      title: 'Test Manga',
+      author: 'Author',
+      category: ['Manga'],
+      coverUrl: '',
+      ownedVolumes: [],
+    };
+    assert.deepStrictEqual(getBookOwnedVolumes(bookWithEmptyOwnedVolumes), []);
+  });
+
+  it('getBookReadVolumes returns all read volumes without truncating to owned [1]', () => {
+    const bookWith12ReadVolumes = {
+      id: 'test-2',
+      title: 'Test Manga',
+      author: 'Author',
+      category: ['Manga'],
+      coverUrl: '',
+      readVolumes: Array.from({ length: 12 }, (_, i) => i + 1),
+      volume: 12,
+    };
+
+    const read = getBookReadVolumes(bookWith12ReadVolumes);
+    assert.strictEqual(read.length, 12);
+    assert.deepStrictEqual(read, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+
+    const bookWithVolumeOnly = {
+      id: 'test-3',
+      title: 'Test Manga',
+      author: 'Author',
+      category: ['Manga'],
+      coverUrl: '',
+      volume: 12,
+    };
+    const readFromVolume = getBookReadVolumes(bookWithVolumeOnly);
+    assert.strictEqual(readFromVolume.length, 12);
+    assert.deepStrictEqual(readFromVolume, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 });
 
 describe('storageValidation', () => {
-  it('isValidPositiveInteger checks integer boundaries', () => {
-    assert.strictEqual(isValidPositiveInteger(0), true);
+  it('isValidNonNegativeInteger and isValidPositiveInteger check integer boundaries', () => {
+    assert.strictEqual(isValidNonNegativeInteger(0), true);
+    assert.strictEqual(isValidNonNegativeInteger(10), true);
+    assert.strictEqual(isValidNonNegativeInteger(-1), false);
+    assert.strictEqual(isValidNonNegativeInteger(1.5), false);
+    assert.strictEqual(isValidNonNegativeInteger(Infinity), false);
+    assert.strictEqual(isValidNonNegativeInteger('5'), false);
+
+    assert.strictEqual(isValidPositiveInteger(0), false);
+    assert.strictEqual(isValidPositiveInteger(1), true);
     assert.strictEqual(isValidPositiveInteger(10), true);
     assert.strictEqual(isValidPositiveInteger(-1), false);
-    assert.strictEqual(isValidPositiveInteger(1.5), false);
-    assert.strictEqual(isValidPositiveInteger(Infinity), false);
-    assert.strictEqual(isValidPositiveInteger('5'), false);
   });
 
   it('sanitizeBook sanitizes and deduplicates volumes', () => {
@@ -115,5 +169,24 @@ describe('storageValidation', () => {
     const migrated = migrateBookData(v1Books, 1);
     assert.strictEqual(migrated.length, 1);
     assert.deepStrictEqual(migrated[0].ownedVolumes, [1, 2, 3]);
+  });
+
+  it('safely clamps huge volume values to 9999 without memory explosion', () => {
+    const hugeBook = {
+      id: 'huge',
+      title: 'Huge Book',
+      author: 'Author',
+      category: ['Manga'],
+      coverUrl: '',
+      volumesOwned: 1000000,
+      volume: 1000000,
+    };
+
+    const owned = getBookOwnedVolumes(hugeBook);
+    assert.strictEqual(owned.length, 9999);
+    assert.strictEqual(owned[owned.length - 1], 9999);
+
+    const read = getBookReadVolumes(hugeBook);
+    assert.strictEqual(read.length, 9999);
   });
 });

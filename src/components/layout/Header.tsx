@@ -48,13 +48,27 @@ function AccountDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const handleClose = useCallback(() => setIsOpen(false), []);
 
   useDismiss(menuRef, handleClose, isOpen);
 
+  const handleMenuKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const item = menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]');
+      item?.focus();
+    }
+  };
+
   return (
     <div className="relative inline-block text-left z-50" ref={menuRef}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-haspopup="menu"
@@ -97,6 +111,7 @@ function AccountDropdown({
         <div
           role="menu"
           aria-label="User account actions"
+          onKeyDown={handleMenuKeyDown}
           className="absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-[#FFFDF9] border border-shell-border shadow-[0_20px_48px_rgba(45,25,10,0.28),0_4px_12px_rgba(0,0,0,0.1)] p-2 z-100 animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="px-2.5 py-2 border-b border-guide-line mb-1">
@@ -166,7 +181,7 @@ export function Header({
   totalBooksCount,
 }: HeaderProps) {
   const hasActiveFilters =
-    selectedCategories.length > 0 || (activeStatus !== 'all' && activeStatus !== 'none');
+    selectedCategories.length > 0 || activeStatus !== 'all';
 
   return (
     <header className="text-left px-0 pb-5 md:pb-6 relative z-50">
@@ -238,6 +253,7 @@ export function Header({
             >
               <button
                 type="button"
+                role="radio"
                 onClick={() => onSelectShelfMode('full-cover')}
                 className={`inline-flex items-center gap-1.5 h-full px-2.5 rounded-[7px] text-[11px] font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C5828] ${
                   shelfMode === 'full-cover'
@@ -264,13 +280,14 @@ export function Header({
 
               <button
                 type="button"
+                role="radio"
                 onClick={() => onSelectShelfMode('full-spine')}
                 className={`inline-flex items-center gap-1.5 h-full px-2.5 rounded-[7px] text-[11px] font-medium transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C5828] ${
                   shelfMode === 'full-spine'
                     ? 'bg-[#8C5828] text-white font-semibold shadow-xs'
                     : 'text-[#4A3B30] hover:text-text-primary hover:bg-[#E2D4BF]/60'
                 }`}
-                title="Spine: Display books as spines (double-tap series to collapse into a single cover)"
+                title="Spine: Display books as spines"
                 aria-checked={shelfMode === 'full-spine'}
               >
                 <svg
@@ -298,7 +315,7 @@ export function Header({
               Filtered by:
             </span>
 
-            {activeStatus !== 'all' && activeStatus !== 'none' && (
+            {activeStatus !== 'all' && (
               <button
                 type="button"
                 onClick={() => onSelectStatus('all')}

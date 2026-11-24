@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { Book, BookStatus, ShelfDisplayMode, SortOption } from '../types/book';
-import { getAniListToken, syncEntryToAniList } from '../services/anilistAuth';
-import { parseStoredBooks, serializeBooks } from '../utils/storageValidation';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { Book, BookStatus, ShelfDisplayMode, SortOption } from '../types/book.ts';
+import { getAniListToken, syncEntryToAniList } from '../services/anilistAuth.ts';
+import { parseStoredBooks, serializeBooks } from '../utils/storageValidation.ts';
+import { SyncQueue, type SyncPayload } from '../utils/syncQueue.ts';
 
 const STORAGE_KEY = 'bookshelf_reading_tracker_books';
 const SHELF_MODE_STORAGE_KEY = 'bookshelf_shelf_display_mode';
@@ -41,19 +42,8 @@ function getInitialBooks(): Book[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     const parsed = parseStoredBooks(saved);
-
-    // If localStorage contained saved data (even an empty array []), respect it.
     if (parsed !== null) {
-      // Clean up legacy placeholder book if present
-      const cleaned = parsed.filter((book) => book.id !== 'blue-box-ao-no-hako');
-      if (cleaned.length !== parsed.length) {
-        try {
-          localStorage.setItem(STORAGE_KEY, serializeBooks(cleaned));
-        } catch {
-          // ignore write errors during initialization
-        }
-      }
-      return cleaned;
+      return parsed;
     }
   } catch (err) {
     console.error('Failed to load books from localStorage:', err);
@@ -61,7 +51,52 @@ function getInitialBooks(): Book[] {
   return [];
 }
 
-function mergeRemoteWithLocal(local: Book, remote: Book): Book {
+export function mergeRemoteWithLocal(local: Book, remote: Book): Book {
+  const localRead = Array.isArray(local.readVolumes) ? local.readVolumes : [];
+  const remoteRead = Array.isArray(remote.readVolumes) ? remote.readVolumes : [];
+  const mergedReadSet = new Set<number>([...localRead, ...remoteRead]);
+  if (typeof remote.volume === 'number' && remote.volume > 0) {
+    for (let i = 1; i <= Math.min(9999, remote.volume); i++) {
+      mergedReadSet.add(i);
+    }
+  }
+  const mergedReadVolumes = Array.from(mergedReadSet).sort((a, b) => a - b);
+
+  const localOwned = Array.isArray(local.ownedVolumes) && local.ownedVolumes.length > 0
+    ? local.ownedVolumes
+    : (typeof local.volumesOwned === 'number' && local.volumesOwned > 0
+      ? Array.from({ length: Math.min(9999, local.volumesOwned) }, (_, i) => i + 1)
+      : []);
+  const remoteOwned = Array.isArray(remote.ownedVolumes) ? remote.ownedVolumes : [];
+  const mergedOwnedSet = new Set<number>([...localOwned, ...remoteOwned, ...mergedReadVolumes]);
+  const mergedOwnedVolumes = mergedOwnedSet.size > 0
+    ? Array.from(mergedOwnedSet).sort((a, b) => a - b)
+    : undefined;
+
+  const resolvedVolume = Math.max(
+    remote.volume ?? 0,
+    local.volume ?? 0,
+    mergedReadVolumes.length > 0 ? Math.max(...mergedReadVolumes) : 0
+  );
+
+  const newStatus = remote.status && remote.status !== 'none' ? remote.status : local.status;
+  const newChapter = remote.chapter !== undefined ? Math.max(remote.chapter, local.chapter || 0) : local.chapter;
+  const newVolume = resolvedVolume > 0 ? resolvedVolume : local.volume;
+
+  // Avoid replacing book object and bumping timestamps if nothing changed
+  const hasChanged =
+    newStatus !== local.status ||
+    newChapter !== local.chapter ||
+    newVolume !== local.volume ||
+    JSON.stringify(mergedReadVolumes) !== JSON.stringify(local.readVolumes || []) ||
+    JSON.stringify(mergedOwnedVolumes || []) !== JSON.stringify(local.ownedVolumes || []) ||
+    (remote.title && remote.title !== local.title) ||
+    (remote.coverUrl && remote.coverUrl !== local.coverUrl);
+
+  if (!hasChanged) {
+    return local;
+  }
+
   return {
     // AniList-owned metadata
     id: remote.id,
@@ -73,45 +108,90 @@ function mergeRemoteWithLocal(local: Book, remote: Book): Book {
     category: remote.category.length > 0 ? remote.category : local.category,
     releaseDate: remote.releaseDate || local.releaseDate,
 
-    // Local-owned metadata (preserve user modifications)
-    ownedVolumes: local.ownedVolumes,
-    volumesOwned: local.volumesOwned,
-    readVolumes: local.readVolumes,
+    // Local-owned metadata (preserve user modifications with reconciled progress)
+    ownedVolumes: mergedOwnedVolumes ?? local.ownedVolumes,
+    volumesOwned: mergedOwnedVolumes ? mergedOwnedVolumes.length : local.volumesOwned,
+    readVolumes: mergedReadVolumes.length > 0 ? mergedReadVolumes : local.readVolumes,
     spineColor: local.spineColor ?? remote.spineColor,
-    spineImageUrl: local.spineImageUrl ?? remote.spineImageUrl,
     createdAt: local.createdAt,
     updatedAt: new Date().toISOString(),
     lastSyncedAt: new Date().toISOString(),
 
     // Intentional status reconciliation
-    status: remote.status && remote.status !== 'none' ? remote.status : local.status,
-    chapter: remote.chapter !== undefined ? Math.max(remote.chapter, local.chapter || 0) : local.chapter,
-    volume: remote.volume !== undefined ? Math.max(remote.volume, local.volume || 0) : local.volume,
+    status: newStatus,
+    chapter: newChapter,
+    volume: newVolume,
   };
 }
-
-export type MutationSyncState = 'idle' | 'syncing' | 'synced' | 'error';
 
 export function useBookshelfStorage() {
   const [books, setBooks] = useState<Book[]>(getInitialBooks);
   const [shelfMode, setShelfMode] = useState<ShelfDisplayMode>(getInitialShelfMode);
   const [sortBy, setSortBy] = useState<SortOption>(getInitialSortBy);
-  const [mutationsByBook, setMutationsByBook] = useState<Record<string, MutationSyncState>>({});
   const [mutationErrorsByBook, setMutationErrorsByBook] = useState<Record<string, string>>({});
-  const inFlightRef = useRef<Set<string>>(new Set());
+  const [storageError, setStorageError] = useState<string | null>(null);
 
-  const mutationStatus: MutationSyncState = useMemo(() => {
-    const states = Object.values(mutationsByBook);
-    if (states.includes('syncing')) return 'syncing';
-    if (states.includes('error')) return 'error';
-    if (states.includes('synced')) return 'synced';
-    return 'idle';
-  }, [mutationsByBook]);
+  const [syncQueue] = useState(
+    () =>
+      new SyncQueue({
+        debounceMs: 200,
+        onSync: async (mediaId, payload) => {
+          const token = getAniListToken();
+          if (!token) {
+            throw new Error('Not signed in to AniList. Changes saved locally only.');
+          }
+          await syncEntryToAniList(token, mediaId, payload);
+        },
+        onStatusChange: (bookId, _status, error) => {
+          setMutationErrorsByBook((prev) => {
+            const next = { ...prev };
+            if (error) {
+              next[bookId] = error;
+            } else {
+              delete next[bookId];
+            }
+            return next;
+          });
+        },
+      })
+  );
+
+  useEffect(() => {
+    return () => {
+      syncQueue.clearAll();
+    };
+  }, [syncQueue]);
+
+  // Multi-tab synchronization
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        const parsed = parseStoredBooks(e.newValue);
+        if (parsed) {
+          setBooks(parsed);
+        }
+      } else if (e.key === SHELF_MODE_STORAGE_KEY && e.newValue) {
+        if (e.newValue === 'full-cover' || e.newValue === 'full-spine') {
+          setShelfMode(e.newValue);
+        }
+      } else if (e.key === SORT_BY_STORAGE_KEY && e.newValue) {
+        setSortBy(e.newValue as SortOption);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const mutationError = useMemo(() => {
+    if (storageError) return storageError;
     const errors = Object.values(mutationErrorsByBook).filter(Boolean);
     return errors.length > 0 ? errors[errors.length - 1] : null;
-  }, [mutationErrorsByBook]);
+  }, [mutationErrorsByBook, storageError]);
+
+  const clearMutationErrors = useCallback(() => {
+    setMutationErrorsByBook({});
+    setStorageError(null);
+  }, []);
 
   useEffect(() => {
     try {
@@ -129,57 +209,40 @@ export function useBookshelfStorage() {
     }
   }, [sortBy]);
 
+  // Debounced library serialization to avoid freezing on keystrokes
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, serializeBooks(books));
-    } catch (err) {
-      console.error('Failed to save books to localStorage:', err);
-    }
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, serializeBooks(books));
+        setStorageError(null);
+      } catch (err) {
+        console.error('Failed to save books to localStorage:', err);
+        setStorageError('Storage quota exceeded. Unable to save your changes locally.');
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
   }, [books]);
 
   const syncToAniList = useCallback(
-    async (
-      bookId: string,
-      payload: {
-        status?: BookStatus;
-        volume?: number;
-        progressVolumes?: number;
-        chapter?: number;
-      }
-    ): Promise<boolean> => {
-      const token = getAniListToken();
-      if (!token || !bookId.startsWith('anilist-')) return true;
+    (bookId: string, payload: SyncPayload, immediate = false): void => {
+      if (!bookId.startsWith('anilist-')) return;
 
       const mediaId = parseInt(bookId.replace('anilist-', ''), 10);
-      if (isNaN(mediaId)) return true;
+      if (isNaN(mediaId)) return;
 
-      // Prevent conflicting concurrent requests on the same book
-      if (inFlightRef.current.has(bookId)) {
-        return false;
+      const token = getAniListToken();
+      if (!token) {
+        setMutationErrorsByBook((prev) => ({
+          ...prev,
+          [bookId]: 'Not signed in to AniList. Changes saved locally only.',
+        }));
+        return;
       }
-      inFlightRef.current.add(bookId);
 
-      setMutationsByBook((prev) => ({ ...prev, [bookId]: 'syncing' }));
-      setMutationErrorsByBook((prev) => {
-        const next = { ...prev };
-        delete next[bookId];
-        return next;
-      });
-
-      try {
-        await syncEntryToAniList(token, mediaId, payload);
-        setMutationsByBook((prev) => ({ ...prev, [bookId]: 'synced' }));
-        return true;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to sync with AniList';
-        setMutationsByBook((prev) => ({ ...prev, [bookId]: 'error' }));
-        setMutationErrorsByBook((prev) => ({ ...prev, [bookId]: message }));
-        return false;
-      } finally {
-        inFlightRef.current.delete(bookId);
-      }
+      syncQueue.enqueue(bookId, mediaId, payload, immediate);
     },
-    []
+    [syncQueue]
   );
 
   const syncRemoteBooks = useCallback((remoteBooks: Book[]) => {
@@ -203,8 +266,12 @@ export function useBookshelfStorage() {
   const handleAddBook = useCallback(
     async (newBook: Book): Promise<boolean> => {
       const now = new Date().toISOString();
+      const initialStatus: BookStatus =
+        newBook.status && newBook.status !== 'none' ? newBook.status : 'want-to-read';
+
       const preparedBook: Book = {
         ...newBook,
+        status: initialStatus,
         createdAt: newBook.createdAt || now,
         updatedAt: now,
       };
@@ -216,16 +283,22 @@ export function useBookshelfStorage() {
         return [preparedBook, ...prev];
       });
 
-      return syncToAniList(preparedBook.id, {
-        status: preparedBook.status || 'want-to-read',
-      });
+      syncToAniList(
+        preparedBook.id,
+        {
+          status: initialStatus,
+        },
+        true
+      );
+      return true;
     },
     [syncToAniList]
   );
 
   const handleDeleteBook = useCallback((bookId: string) => {
+    syncQueue.cancel(bookId);
     setBooks((prev) => prev.filter((b) => b.id !== bookId));
-  }, []);
+  }, [syncQueue]);
 
   const handleReorderBooks = useCallback((sourceBookId: string, targetBookId: string) => {
     if (sourceBookId === targetBookId) return;
@@ -251,7 +324,8 @@ export function useBookshelfStorage() {
           b.id === bookId ? { ...b, status, updatedAt: new Date().toISOString() } : b
         )
       );
-      return syncToAniList(bookId, { status });
+      syncToAniList(bookId, { status });
+      return true;
     },
     [syncToAniList]
   );
@@ -269,21 +343,26 @@ export function useBookshelfStorage() {
     ): Promise<boolean> => {
       const applyProgressUpdate = (b: Book): Book => {
         const updated = { ...b, ...progress, updatedAt: new Date().toISOString() };
+        if (typeof progress.chapter === 'number') {
+          updated.chapter = Math.min(9999, Math.max(0, progress.chapter));
+        }
         if (Array.isArray(progress.ownedVolumes)) {
-          updated.ownedVolumes = progress.ownedVolumes;
-          updated.volume =
-            progress.ownedVolumes.length > 0 ? Math.max(...progress.ownedVolumes) : 0;
-          updated.volumesOwned = progress.ownedVolumes.length;
-        } else if (typeof progress.volume === 'number') {
-          updated.volumesOwned = progress.volume;
-          updated.ownedVolumes =
-            progress.volume > 0 ? Array.from({ length: progress.volume }, (_, i) => i + 1) : [];
+          const valid = progress.ownedVolumes.filter((v) => v > 0 && v <= 9999);
+          updated.ownedVolumes = valid;
+          updated.volumesOwned = valid.length;
+        }
+        if (typeof progress.volume === 'number') {
+          const clamped = Math.min(9999, Math.max(0, progress.volume));
+          updated.volume = clamped;
+          if (!progress.ownedVolumes && !updated.ownedVolumes) {
+            updated.volumesOwned = clamped;
+            updated.ownedVolumes =
+              clamped > 0 ? Array.from({ length: clamped }, (_, i) => i + 1) : [];
+          }
         }
         if (Array.isArray(progress.readVolumes)) {
-          updated.readVolumes = progress.readVolumes;
-        } else if (Array.isArray(updated.ownedVolumes) && Array.isArray(updated.readVolumes)) {
-          const ownedSet = new Set(updated.ownedVolumes);
-          updated.readVolumes = updated.readVolumes.filter((v) => ownedSet.has(v));
+          const valid = progress.readVolumes.filter((v) => v > 0 && v <= 9999);
+          updated.readVolumes = valid;
         }
         return updated;
       };
@@ -298,10 +377,11 @@ export function useBookshelfStorage() {
             ? progress.volume
             : undefined;
 
-      return syncToAniList(bookId, {
+      syncToAniList(bookId, {
         chapter: progress.chapter,
         progressVolumes: readVolumeProgress,
       });
+      return true;
     },
     [syncToAniList]
   );
@@ -310,10 +390,8 @@ export function useBookshelfStorage() {
     books,
     shelfMode,
     sortBy,
-    mutationStatus,
     mutationError,
-    mutationsByBook,
-    mutationErrorsByBook,
+    clearMutationErrors,
     setShelfMode,
     setSortBy,
     syncRemoteBooks,

@@ -18,6 +18,7 @@ const SORT_OPTIONS: { id: SortOption; label: string; shortLabel: string }[] = [
 export function SortDropdown({ sortBy, onSelectSort }: SortDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerButtonRef = useRef<HTMLButtonElement>(null);
   const handleClose = useCallback(() => setIsOpen(false), []);
 
   useDismiss(dropdownRef, handleClose, isOpen);
@@ -25,9 +26,36 @@ export function SortDropdown({ sortBy, onSelectSort }: SortDropdownProps) {
   const activeOption = SORT_OPTIONS.find((opt) => opt.id === sortBy) ?? SORT_OPTIONS[0];
   const isCustomSort = sortBy !== 'title-asc' && sortBy !== 'recent';
 
+  const handleMenuKeyDown = (e: React.KeyboardEvent) => {
+    const items = dropdownRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]');
+    if (!items || items.length === 0) return;
+    const currentIndex = Array.from(items).indexOf(document.activeElement as HTMLButtonElement);
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+      items[nextIndex]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+      items[prevIndex]?.focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsOpen(false);
+      triggerButtonRef.current?.focus();
+    }
+  };
+
   return (
     <div className="relative inline-block text-left z-40" ref={dropdownRef}>
       <button
+        ref={triggerButtonRef}
         type="button"
         className={`inline-flex items-center gap-1.5 h-7 px-2.5 sm:px-3 rounded-[9px] text-[12px] leading-none cursor-pointer select-none transition-all duration-150 relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C5828] focus-visible:ring-offset-1 ${
           isCustomSort
@@ -77,6 +105,7 @@ export function SortDropdown({ sortBy, onSelectSort }: SortDropdownProps) {
         <div
           role="menu"
           aria-label="Sort options"
+          onKeyDown={handleMenuKeyDown}
           className="absolute right-0 top-full mt-1.5 w-52 rounded-xl bg-[#FFFDF9] border border-shell-border shadow-[0_20px_48px_rgba(45,25,10,0.28),0_4px_12px_rgba(0,0,0,0.1)] p-3 z-100 animate-in fade-in zoom-in-95 duration-100 focus:outline-none"
         >
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-guide-line">

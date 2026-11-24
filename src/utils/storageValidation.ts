@@ -35,8 +35,12 @@ export function migrateBookData(rawBooks: unknown[], version: number): Book[] {
   return books;
 }
 
-export function isValidPositiveInteger(value: unknown): value is number {
+export function isValidNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+export function isValidPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
 export function isValidBook(data: unknown): data is Book {
@@ -74,10 +78,6 @@ export function sanitizeBook(data: unknown): Book | null {
     sanitized.spineColor = b.spineColor.trim();
   }
 
-  if (typeof b.spineImageUrl === 'string' && b.spineImageUrl.trim()) {
-    sanitized.spineImageUrl = b.spineImageUrl.trim();
-  }
-
   if (typeof b.description === 'string') {
     sanitized.description = b.description;
   }
@@ -98,29 +98,29 @@ export function sanitizeBook(data: unknown): Book | null {
     sanitized.lastSyncedAt = b.lastSyncedAt;
   }
 
-  if (isValidPositiveInteger(b.volume) && b.volume <= 9999) {
+  if (isValidNonNegativeInteger(b.volume) && b.volume <= 9999) {
     sanitized.volume = b.volume;
   }
 
-  if (isValidPositiveInteger(b.chapter) && b.chapter <= 99999) {
+  if (isValidNonNegativeInteger(b.chapter) && b.chapter <= 99999) {
     sanitized.chapter = b.chapter;
   }
 
-  if (isValidPositiveInteger(b.volumesOwned) && b.volumesOwned <= 9999) {
+  if (isValidNonNegativeInteger(b.volumesOwned) && b.volumesOwned <= 9999) {
     sanitized.volumesOwned = b.volumesOwned;
   }
 
-  if (isValidPositiveInteger(b.totalVolumes) && b.totalVolumes > 0 && b.totalVolumes <= 9999) {
+  if (isValidPositiveInteger(b.totalVolumes) && b.totalVolumes <= 9999) {
     sanitized.totalVolumes = b.totalVolumes;
   }
 
   if (Array.isArray(b.ownedVolumes)) {
-    const validNums = b.ownedVolumes.filter((v): v is number => isValidPositiveInteger(v) && v > 0 && v <= 9999);
+    const validNums = b.ownedVolumes.filter((v): v is number => isValidPositiveInteger(v) && v <= 9999);
     sanitized.ownedVolumes = Array.from(new Set(validNums)).sort((a, b) => a - b);
   }
 
   if (Array.isArray(b.readVolumes)) {
-    const validNums = b.readVolumes.filter((v): v is number => isValidPositiveInteger(v) && v > 0 && v <= 9999);
+    const validNums = b.readVolumes.filter((v): v is number => isValidPositiveInteger(v) && v <= 9999);
     sanitized.readVolumes = Array.from(new Set(validNums)).sort((a, b) => a - b);
   }
 

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
 
 @theme {
   --color-page-bg-start: #F5EFE6;
@@ -14,49 +15,17 @@
   --color-pill-bg: #F1E6D3;
   --color-pill-border: #CDB89A;
   --color-pill-text: #2C221E;
-  --color-pill-active-bg: #E4D5BD;
-  --color-pill-active-border: #B79F7F;
   --color-pill-hover-bg: #EAE0CD;
 
-  --color-plank-top: #E0BE94;
   --color-plank-edge: #C79B6A;
 
-  --color-shelf-shadow: #6B4F33;
-  --color-shelf-top-start: #B99C80;
-  --color-shelf-top-mid: #C0A280;
-  --color-shelf-top-end: #C9AD8E;
-  --color-shelf-border: #A48C73;
-  --color-shelf-edge: #CDB08F;
-  --color-shelf-corner: #8F6C40;
-
   --color-spine-brown: #8B5A2B;
-  --color-spine-tan: #D9BF93;
 
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 :root {
   scrollbar-gutter: stable;
-  --shelf-wood-grain: linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.08),
-      rgba(255, 255, 255, 0) 50%,
-      rgba(90, 55, 20, 0.05)
-    ),
-    linear-gradient(
-      180deg,
-      #e7cdaf 0px,
-      #dcc1a3 2px,
-      #d2b597 4px,
-      #cbac8d 6px,
-      #d2b493 8px,
-      #d1b699 10px,
-      #c3a98e 12px
-    );
-}
-
-.shelf-wood-grain {
-  background-image: var(--shelf-wood-grain);
 }
 
 .recessed-bookcase-frame {
@@ -83,8 +52,7 @@
     inset 0 -8px 10px -4px rgba(30, 12, 2, 0.22);
 }
 
-.timber-grain-vertical,
-.timber-grain-overlay {
+.timber-grain-vertical {
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -249,13 +217,6 @@
   text-orientation: mixed;
   font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'YuGothic', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-feature-settings: 'palt' 1;
-}
-
-.spine-paper-texture {
-  background-image:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.22) 0%, rgba(255, 255, 255, 0.2) 12%, rgba(255, 255, 255, 0.04) 28%, rgba(0, 0, 0, 0.02) 70%, rgba(0, 0, 0, 0.26) 100%),
-    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.025) 2px, rgba(0, 0, 0, 0.025) 4px),
-    repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(255, 255, 255, 0.02) 1px, rgba(255, 255, 255, 0.02) 2px);
 }
 
 .no-scrollbar {

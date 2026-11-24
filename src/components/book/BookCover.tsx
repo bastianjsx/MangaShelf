@@ -66,14 +66,14 @@ export const BookCover = memo(function BookCover({
   const volLabel = volumeNumber ? `Vol. ${volumeNumber}` : 'Vol. 1';
 
   return (
-    <motion.article
+    <motion.button
+      type="button"
       ref={setNodeRef}
       style={sortableStyle}
       layout="position"
       whileHover={isDragging ? undefined : { y: -4, scale: 1.02 }}
       transition={{ type: 'spring', stiffness: 450, damping: 28 }}
       aria-label={`${book.title} (${volLabel})`}
-      {...(onReorderBooks ? attributes : { role: 'button', tabIndex: 0 })}
       onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -87,16 +87,15 @@ export const BookCover = memo(function BookCover({
         }
       }}
       onMouseLeave={() => onLeaveBook?.()}
-      className={`shrink-0 w-25 h-37.5 aspect-2/3 relative select-none rounded-[3px] touch-manipulation focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 ${
+      className={`shrink-0 w-25 h-37.5 aspect-2/3 relative select-none rounded-[3px] touch-manipulation focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 text-left p-0 border-0 bg-transparent block ${
         onReorderBooks ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${
         isDragging
           ? 'opacity-35 scale-95 z-40 shadow-2xl ring-2 ring-[#8C5828]'
           : 'z-10 group hover:z-30'
       }`}
-      title={onHoverBook ? undefined : `${book.title} (${volLabel})`}
-      {...attributes}
-      {...listeners}
+      {...(onReorderBooks ? attributes : {})}
+      {...(onReorderBooks ? listeners : {})}
     >
       <div className="absolute -bottom-0.5 inset-x-2 h-1 bg-[#3a1d08]/22 blur-[1px] rounded-full pointer-events-none z-0 shadow-[0_1px_2.5px_rgba(45,20,5,0.16)] transition-all duration-200 group-hover:opacity-20" />
 
@@ -159,6 +158,6 @@ export const BookCover = memo(function BookCover({
           </div>
         )}
       </div>
-    </motion.article>
+    </motion.button>
   );
 });

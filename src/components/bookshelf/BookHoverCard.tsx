@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   useFloating,
   autoUpdate,
@@ -35,7 +35,10 @@ function formatHoverVolumeLabel(book: Book): string {
 }
 
 export function BookHoverCard({ hovered }: { hovered: HoveredBookState }) {
-  const { refs, floatingStyles } = useFloating({
+  const {
+    refs: { setFloating: setFloatingRef },
+    floatingStyles,
+  } = useFloating({
     elements: {
       reference: hovered.targetEl,
     },
@@ -61,17 +64,10 @@ export function BookHoverCard({ hovered }: { hovered: HoveredBookState }) {
     volumeNumber != null ? `Vol. ${volumeNumber}` : formatHoverVolumeLabel(book);
   const palette = getSpinePalette(book, hovered.titleIndex, undefined, hovered.volumeNumber);
 
-  const handleFloatingRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      refs.setFloating(node);
-    },
-    [refs]
-  );
-
   return (
     <FloatingPortal>
       <div
-        ref={handleFloatingRef}
+        ref={setFloatingRef}
         style={floatingStyles}
         className="z-100 pointer-events-none"
         role="tooltip"

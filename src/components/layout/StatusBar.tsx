@@ -1,8 +1,6 @@
 import type { StatusFilter } from '../../types/book';
 import { STATUS_OPTIONS } from '../../utils/statusConfig';
 
-export type { StatusFilter };
-
 interface StatusBarProps {
   activeStatus: StatusFilter;
   onSelectStatus: (status: StatusFilter) => void;
@@ -16,8 +14,8 @@ export function StatusBar({
 }: StatusBarProps) {
   return (
     <div
-      className="flex items-center gap-1.5 overflow-x-auto [scrollbar-none] py-1"
-      role="tablist"
+      className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1"
+      role="group"
       aria-label="Filter bookshelf by status"
     >
       {STATUS_OPTIONS.map((option) => {
@@ -28,8 +26,7 @@ export function StatusBar({
           <button
             key={option.id}
             type="button"
-            role="tab"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             onClick={() =>
               onSelectStatus(isActive && option.id !== 'all' ? 'all' : option.id)
             }

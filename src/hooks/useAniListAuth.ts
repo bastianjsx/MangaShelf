@@ -11,10 +11,11 @@ import {
   fetchUserMangaCollection,
   getLastAniListSyncTime,
   setLastAniListSyncTime,
+  ANILIST_AUTH_CLEARED_EVENT,
+  isSyncDue,
 } from '../services/anilistAuth.ts';
 import type { Book } from '../types/book.ts';
 
-export const AUTO_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1 day (24 hours)
 const PERIODIC_CHECK_INTERVAL_MS = 60 * 60 * 1000; // Check hourly if browser tab remains open
 
 interface UseAniListAuthOptions {
@@ -27,6 +28,9 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  const clearSyncError = useCallback(() => setSyncError(null), []);
+  const clearAuthError = useCallback(() => setAuthError(null), []);
 
   const handleSyncManga = useCallback(
     async (targetUserId?: number, targetToken?: string) => {
@@ -72,8 +76,7 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
           if (!cancelled) {
             setUser(viewer);
             const lastSync = getLastAniListSyncTime();
-            const isSyncDue = !lastSync || Date.now() - lastSync >= AUTO_SYNC_INTERVAL_MS;
-            if (redirectToken || isSyncDue) {
+            if (redirectToken || isSyncDue(lastSync)) {
               await syncMangaRef.current(viewer.id, token);
             }
           }
@@ -94,14 +97,34 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
     };
   }, []);
 
+  // Listen for background session expirations (e.g. 401 during sync)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleAuthCleared = (e: Event) => {
+      const customEvent = e as CustomEvent<{ reason?: string }>;
+      setUser(null);
+      if (customEvent.detail?.reason === 'expired') {
+        setAuthError('Your AniList session has expired. Please sign in again.');
+      } else {
+        setAuthError(null);
+      }
+      setSyncError(null);
+    };
+
+    window.addEventListener(ANILIST_AUTH_CLEARED_EVENT, handleAuthCleared);
+    return () => {
+      window.removeEventListener(ANILIST_AUTH_CLEARED_EVENT, handleAuthCleared);
+    };
+  }, []);
+
   // Periodic check if browser tab remains open across days
   useEffect(() => {
     if (!user) return;
 
     const intervalId = setInterval(() => {
       const lastSync = getLastAniListSyncTime();
-      const isDue = !lastSync || Date.now() - lastSync >= AUTO_SYNC_INTERVAL_MS;
-      if (isDue && !isSyncing) {
+      if (isSyncDue(lastSync) && !isSyncing) {
         handleSyncManga(user.id);
       }
     }, PERIODIC_CHECK_INTERVAL_MS);
@@ -119,7 +142,7 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
   }, []);
 
   const handleLogout = useCallback(() => {
-    clearAniListAuth();
+    clearAniListAuth('logout');
     setUser(null);
     setSyncError(null);
     setAuthError(null);
@@ -147,6 +170,8 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
     isSyncing,
     syncError,
     authError,
+    clearSyncError,
+    clearAuthError,
     handleLoginClick,
     handleLogout,
     handleDirectTokenSubmit,

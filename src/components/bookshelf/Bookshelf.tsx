@@ -11,12 +11,16 @@ import {
 } from '@dnd-kit/core';
 import {
   SortableContext,
-  horizontalListSortingStrategy,
+  rectSortingStrategy,
 } from '@dnd-kit/sortable';
-import type { Book, ShelfDisplayMode } from '../../types/book';
-import type { StatusFilter } from '../layout/StatusBar';
+import type { Book, ShelfDisplayMode, StatusFilter } from '../../types/book';
 import { EmptyState } from '../EmptyState';
-import { getBookOwnedVolumes, getBookReadVolumes, getVolumeStatus } from '../../utils/spineUtils';
+import {
+  getBookOwnedVolumes,
+  getBookReadVolumes,
+  getVolumeStatus,
+  SPINE_SLOT_WIDTH,
+} from '../../utils/spineUtils';
 import { BookHoverCard, type HoveredBookState } from './BookHoverCard';
 import { BookshelfTier, type ShelfItem } from './BookshelfTier';
 
@@ -30,8 +34,8 @@ interface BookshelfProps {
   activeStatus?: StatusFilter;
 }
 
+const MAX_ROWS_PER_PAGE = 4;
 const MIN_SHELVES = 2;
-const SPINE_SLOT_WIDTH = 24;
 
 export function Bookshelf({
   books,
@@ -42,6 +46,15 @@ export function Bookshelf({
   onReorderBooks,
   activeStatus,
 }: BookshelfProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [prevFilterKey, setPrevFilterKey] = useState(() => `${shelfMode}-${activeStatus}-${books.length}`);
+
+  const currentFilterKey = `${shelfMode}-${activeStatus}-${books.length}`;
+  if (prevFilterKey !== currentFilterKey) {
+    setPrevFilterKey(currentFilterKey);
+    setCurrentPage(1);
+  }
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [hoveredBook, setHoveredBook] = useState<HoveredBookState | null>(null);
@@ -89,18 +102,15 @@ export function Bookshelf({
       const book = books[titleIndex];
       const allOwnedVolumes = getBookOwnedVolumes(book);
       const readSet = new Set(getBookReadVolumes(book));
-      const volumeNumbers =
-        shelfMode === 'full-spine' && activeStatus && activeStatus !== 'all'
-          ? allOwnedVolumes.filter((v) => getVolumeStatus(book, v, readSet) === activeStatus)
-          : allOwnedVolumes;
-
-      if (volumeNumbers.length === 0) {
-        continue;
-      }
-
-      const lowestVol = volumeNumbers.includes(1) ? 1 : (volumeNumbers[0] ?? 1);
 
       if (shelfMode === 'full-cover') {
+        const lowestVol =
+          allOwnedVolumes.length > 0
+            ? allOwnedVolumes.includes(1)
+              ? 1
+              : (allOwnedVolumes[0] ?? 1)
+            : 1;
+
         items.push({
           key: `cover-${book.id}-vol-${lowestVol}`,
           kind: 'cover',
@@ -109,6 +119,24 @@ export function Bookshelf({
           titleIndex,
         });
       } else {
+        const volumeNumbers =
+          activeStatus && activeStatus !== 'all'
+            ? allOwnedVolumes.filter((v) => getVolumeStatus(book, v, readSet) === activeStatus)
+            : allOwnedVolumes;
+
+        if (volumeNumbers.length === 0) {
+          if (!activeStatus || activeStatus === 'all' || book.status === activeStatus) {
+            items.push({
+              key: `spine-${book.id}-vol-none`,
+              kind: 'spine',
+              book,
+              volumeNumber: undefined,
+              titleIndex,
+            });
+          }
+          continue;
+        }
+
         for (const v of volumeNumbers) {
           items.push({
             key: `spine-${book.id}-vol-${v}`,
@@ -124,12 +152,11 @@ export function Bookshelf({
     const rows: ShelfItem[][] = [];
     let currentShelf: ShelfItem[] = [];
     let currentWidth = 0;
-    const isSpineMode = shelfMode === 'full-spine';
 
     for (const item of items) {
       const currIsCover = item.kind === 'cover';
       const baseWidth = currIsCover ? 100 : SPINE_SLOT_WIDTH;
-      const minGap = currentShelf.length === 0 ? 0 : (currIsCover ? (isSpineMode ? 0 : 12) : 0);
+      const minGap = currentShelf.length === 0 ? 0 : (currIsCover ? 12 : 0);
       const additionalWidth = baseWidth + minGap;
 
       if (currentShelf.length > 0 && currentWidth + additionalWidth > usableWidth) {
@@ -146,12 +173,30 @@ export function Bookshelf({
       rows.push(currentShelf);
     }
 
-    while (rows.length < MIN_SHELVES) {
-      rows.push([]);
-    }
-
     return rows;
   }, [books, usableWidth, shelfMode, activeStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(allRows.length / MAX_ROWS_PER_PAGE));
+  if (currentPage > totalPages) {
+    setCurrentPage(totalPages);
+  }
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const currentTiers = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * MAX_ROWS_PER_PAGE;
+    const pageRows = allRows.slice(startIndex, startIndex + MAX_ROWS_PER_PAGE);
+
+    while (pageRows.length < MIN_SHELVES) {
+      pageRows.push([]);
+    }
+
+    return pageRows;
+  }, [allRows, safeCurrentPage]);
+
+  const handlePageChange = useCallback((nextPage: number | ((prev: number) => number)) => {
+    setHoveredBook(null);
+    setCurrentPage(nextPage);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -220,7 +265,7 @@ export function Bookshelf({
   if (totalBooksCount > 0 && books.length === 0) {
     return (
       <div className="relative w-full rounded-2xl bg-bookshelf-bg border border-shell-border/80 py-10 px-4 shadow-[inset_0_2px_6px_rgba(90,55,20,0.04)]">
-        <EmptyState type="no-matches" onClearFilter={onClearFilter} activeStatus={activeStatus} />
+        <EmptyState onClearFilter={onClearFilter} activeStatus={activeStatus} />
       </div>
     );
   }
@@ -245,14 +290,13 @@ export function Bookshelf({
             >
               <SortableContext
                 items={bookIds}
-                strategy={horizontalListSortingStrategy}
+                strategy={rectSortingStrategy}
               >
-                {allRows.map((shelfItems, tierIndex) => (
+                {currentTiers.map((shelfItems, tierIndex) => (
                   <BookshelfTier
-                    key={`tier-${tierIndex}`}
+                    key={`tier-${safeCurrentPage}-${tierIndex}`}
                     items={shelfItems}
-                    tierIndex={tierIndex}
-                    isLastTier={tierIndex === allRows.length - 1}
+                    isLastTier={tierIndex === currentTiers.length - 1}
                     shelfMode={shelfMode}
                     maxCoversPerRow={maxCoversPerRow}
                     fullRowCoverGap={fullRowCoverGap}
@@ -278,6 +322,57 @@ export function Bookshelf({
 
       {activeHover && (
         <BookHoverCard key={activeHover.book.id} hovered={activeHover} />
+      )}
+
+      {totalPages > 1 && (
+        <nav
+          aria-label="Bookshelf pagination"
+          className="flex items-center justify-end gap-1.5 mt-3 px-1"
+        >
+          <button
+            type="button"
+            onClick={() => handlePageChange((p) => Math.max(1, p - 1))}
+            disabled={safeCurrentPage === 1}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-text-primary bg-pill-bg border border-pill-border hover:bg-pill-hover-bg disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer select-none"
+            aria-label="Previous page"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            <span>Prev</span>
+          </button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => handlePageChange(pageNum)}
+                aria-current={safeCurrentPage === pageNum ? 'page' : undefined}
+                className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer select-none flex items-center justify-center ${
+                  safeCurrentPage === pageNum
+                    ? 'bg-plank-edge text-white shadow-xs'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-[#EBDDC8]'
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => handlePageChange((p) => Math.min(totalPages, p + 1))}
+            disabled={safeCurrentPage === totalPages}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-text-primary bg-pill-bg border border-pill-border hover:bg-pill-hover-bg disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer select-none"
+            aria-label="Next page"
+          >
+            <span>Next</span>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </nav>
       )}
     </div>
   );

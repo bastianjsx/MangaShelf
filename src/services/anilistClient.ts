@@ -43,7 +43,12 @@ export class AniListRateLimitError extends AniListError {
   retryAfterSeconds?: number;
 
   constructor(retryAfterSeconds?: number) {
-    super('AniList rate limit exceeded. Please wait a moment.', 429);
+    super(
+      retryAfterSeconds
+        ? `AniList rate limit exceeded. Please wait ${retryAfterSeconds} seconds.`
+        : 'AniList rate limit exceeded. Please wait a moment.',
+      429
+    );
     this.name = 'AniListRateLimitError';
     this.retryAfterSeconds = retryAfterSeconds;
   }
@@ -91,7 +96,13 @@ export async function requestAniListGraphQL<T>(
     }
     if (res.status === 429) {
       const retryHeader = res.headers.get('Retry-After');
-      const retryAfter = retryHeader ? parseInt(retryHeader, 10) : undefined;
+      let retryAfter: number | undefined;
+      if (retryHeader) {
+        const parsed = parseInt(retryHeader, 10);
+        if (!Number.isNaN(parsed) && parsed > 0) {
+          retryAfter = parsed;
+        }
+      }
       throw new AniListRateLimitError(retryAfter);
     }
     throw new AniListError(`AniList error: ${res.status} ${res.statusText}`, res.status);
@@ -107,6 +118,17 @@ export async function requestAniListGraphQL<T>(
   if (json.errors && json.errors.length > 0) {
     const primaryMessage = json.errors.map((e) => e.message).join('; ') || 'GraphQL error occurred.';
     const primaryStatus = json.errors[0]?.status || res.status;
+    const isAuthError =
+      primaryStatus === 401 ||
+      json.errors.some(
+        (e) =>
+          e.status === 401 ||
+          e.message?.toLowerCase().includes('unauthorized') ||
+          e.message?.toLowerCase().includes('invalid token')
+      );
+    if (isAuthError) {
+      throw new AniListAuthError();
+    }
     throw new AniListError(primaryMessage, primaryStatus, json.errors, json);
   }
 

@@ -20,6 +20,17 @@ export const DEFAULT_SPINE_FORMAT: SpineFormat = {
   formatLabel: 'MANGA',
 };
 
+export const SPINE_SLOT_WIDTH = DEFAULT_SPINE_FORMAT.width;
+
+export const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+export function isValidHexColor(hex: string): boolean {
+  return HEX_COLOR_REGEX.test(hex);
+}
+export const DEFAULT_BROWN_SPINE_HEX = '#8B5A2B';
+export function isDefaultBrownColor(hex: string): boolean {
+  return hex.toUpperCase() === DEFAULT_BROWN_SPINE_HEX;
+}
+
 export function hashString(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -140,7 +151,7 @@ export function hexToHsl(h: string): [number, number, number] {
   if (clean.length === 3 && /^[0-9A-Fa-f]{3}$/.test(clean)) {
     clean = clean.split('').map((c) => c + c).join('');
   }
-  if (!/^[0-9A-Fa-f]{6}$/.test(clean)) {
+  if (!isValidHexColor(`#${clean}`)) {
     return [0, 0, 0];
   }
   const r = parseInt(clean.slice(0, 2), 16) / 255;
@@ -235,6 +246,7 @@ export function getColorFamily(hex: string): ColorFamily {
 
 export interface SpineColorContext {
   title?: string;
+  bookId?: string;
   titleIndex?: number;
   volumeNumber?: number;
 }
@@ -245,12 +257,12 @@ export function mapToSoftPalette(
 ): string {
   const cleanHex = baseColorHex.trim();
   const hex = cleanHex.startsWith('#') ? cleanHex : `#${cleanHex}`;
-  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+  if (!isValidHexColor(hex)) {
     return FAMILY_DEFAULTS.neutral;
   }
 
   const cacheKey = context
-    ? `${hex.toUpperCase()}_${context.title || ''}_${context.titleIndex ?? ''}_${context.volumeNumber ?? ''}`
+    ? `${hex.toUpperCase()}_${context.bookId || context.title || ''}_${context.volumeNumber ?? ''}`
     : hex.toUpperCase();
 
   const cached = softPaletteCache.get(cacheKey);
@@ -278,7 +290,7 @@ export function mapToSoftPalette(
     if (familySwatches.length === 0) {
       selectedHex = FAMILY_DEFAULTS[family] || FAMILY_DEFAULTS.neutral;
     } else {
-      const titleHash = hashString(context?.title || '') ^ ((context?.titleIndex ?? 0) * 31);
+      const idHash = hashString(context?.bookId || context?.title || '');
 
       // Score swatches in the family by matching source hue, target spine depth (0.38), and priority
       const candidates = [...familySwatches].sort((a, b) => {
@@ -292,9 +304,9 @@ export function mapToSoftPalette(
         return scoreA - scoreB;
       });
 
-      // When context is provided, alternate among top matching swatches based on titleHash
+      // When context is provided, alternate among top matching swatches based on idHash
       const candidateIndex = context
-        ? Math.abs(titleHash) % Math.min(candidates.length, 3)
+        ? Math.abs(idHash) % Math.min(candidates.length, 3)
         : 0;
       selectedHex = candidates[candidateIndex]?.hex || candidates[0].hex;
     }
@@ -302,10 +314,10 @@ export function mapToSoftPalette(
 
   // Modulate shade per title and per volume so titles sharing the same color family
   // (e.g. multiple blue mangas) get distinct darker/lighter shades:
-  if (context?.title || typeof context?.titleIndex === 'number' || typeof context?.volumeNumber === 'number') {
-    const titleHash = hashString(context.title || '') ^ ((context.titleIndex ?? 0) * 17);
+  if (context?.bookId || context?.title || typeof context?.volumeNumber === 'number') {
+    const idHash = hashString(context?.bookId || context?.title || '');
     // Subtle title lightness shift: -0.04 to +0.04
-    const titleLStep = ((Math.abs(titleHash) % 5) - 2) * 0.02;
+    const titleLStep = ((Math.abs(idHash) % 5) - 2) * 0.02;
 
     // Subtle volume micro-shift between volumes of the same title
     const volLStep =
@@ -344,10 +356,11 @@ export function getSpinePalette(
 ): SpinePalette {
   const rawColor = (shelfBaseColor || book.spineColor)?.trim();
   const hex = rawColor ? (rawColor.startsWith('#') ? rawColor : `#${rawColor}`) : '';
-  const hasValidHex = /^#[0-9A-Fa-f]{6}$/.test(hex) && hex.toUpperCase() !== '#8B5A2B';
+  const hasValidHex = isValidHexColor(hex) && !isDefaultBrownColor(hex);
 
   const context: SpineColorContext = {
     title: book.title,
+    bookId: book.id,
     titleIndex,
     volumeNumber,
   };
@@ -356,8 +369,8 @@ export function getSpinePalette(
   if (hasValidHex) {
     titleColor = mapToSoftPalette(hex, context);
   } else {
-    const offset = typeof titleIndex === 'number' ? titleIndex : 0;
-    const colorIndex = (14 + offset) % CHROMATIC_SOFT_PALETTE.length;
+    const idHash = hashString(book.id || book.title || '');
+    const colorIndex = (14 + idHash) % CHROMATIC_SOFT_PALETTE.length;
     const fallbackColor = CHROMATIC_SOFT_PALETTE[colorIndex];
     titleColor = mapToSoftPalette(fallbackColor, context);
   }
@@ -389,6 +402,10 @@ export function getSpineVolumeInfo(book: Book, volumeNumber?: number): { badgeTe
     return { badgeText: String(volumeNumber), tooltipText: `Vol. ${volumeNumber}` };
   }
 
+  if (Array.isArray(book.ownedVolumes) && book.ownedVolumes.length === 0) {
+    return { badgeText: '—', tooltipText: `${book.title} (0 volumes owned)` };
+  }
+
   if (typeof book.volume === 'number' && book.volume > 0) {
     return { badgeText: String(book.volume), tooltipText: `Vol. ${book.volume}` };
   }
@@ -409,7 +426,7 @@ export function getSpineVolumeInfo(book: Book, volumeNumber?: number): { badgeTe
 export function getSpineColorSortScore(hex?: string): number {
   if (!hex) return 5000;
   const clean = hex.trim();
-  if (!/^#[0-9A-Fa-f]{6}$/.test(clean)) return 5000;
+  if (!isValidHexColor(clean)) return 5000;
 
   const [h, s, l] = hexToHsl(clean);
 
@@ -434,7 +451,7 @@ export function getSpineColorSortScore(hex?: string): number {
 }
 
 export function getBookOwnedVolumes(book: Book): number[] {
-  if (Array.isArray(book.ownedVolumes) && book.ownedVolumes.length > 0) {
+  if (Array.isArray(book.ownedVolumes)) {
     const arr = book.ownedVolumes;
     let isSorted = true;
     for (let i = 1; i < arr.length; i++) {
@@ -445,25 +462,34 @@ export function getBookOwnedVolumes(book: Book): number[] {
     }
     return isSorted ? arr : [...arr].sort((a, b) => a - b);
   }
-  const count = Math.max(
-    1,
-    typeof book.volumesOwned === 'number' && book.volumesOwned > 0
-      ? book.volumesOwned
-      : 1
+  const count = Math.min(
+    9999,
+    Math.max(
+      1,
+      typeof book.volumesOwned === 'number' && book.volumesOwned > 0
+        ? book.volumesOwned
+        : 1
+    )
   );
   return Array.from({ length: count }, (_, i) => i + 1);
 }
 
 export function getBookReadVolumes(book: Book): number[] {
-  const owned = getBookOwnedVolumes(book);
-  const ownedSet = new Set(owned);
-
   if (Array.isArray(book.readVolumes) && book.readVolumes.length > 0) {
-    return book.readVolumes.filter((v) => ownedSet.has(v)).sort((a, b) => a - b);
+    const arr = book.readVolumes.filter((v) => v > 0 && v <= 9999);
+    let isSorted = true;
+    for (let i = 1; i < arr.length; i++) {
+      if (arr[i] < arr[i - 1]) {
+        isSorted = false;
+        break;
+      }
+    }
+    return isSorted ? arr : [...arr].sort((a, b) => a - b);
   }
 
   if (typeof book.volume === 'number' && book.volume > 0 && book.status !== 'want-to-read') {
-    return Array.from({ length: book.volume }, (_, i) => i + 1).filter((v) => ownedSet.has(v));
+    const vol = Math.min(9999, book.volume);
+    return Array.from({ length: vol }, (_, i) => i + 1);
   }
 
   return [];

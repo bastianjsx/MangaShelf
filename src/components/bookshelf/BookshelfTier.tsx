@@ -12,7 +12,6 @@ export interface ShelfItem {
 
 interface BookshelfTierProps {
   items: ShelfItem[];
-  tierIndex: number;
   isLastTier: boolean;
   shelfMode: ShelfDisplayMode;
   maxCoversPerRow: number;
@@ -30,7 +29,6 @@ interface BookshelfTierProps {
 
 export function BookshelfTier({
   items,
-  tierIndex,
   isLastTier,
   shelfMode,
   maxCoversPerRow,
@@ -52,7 +50,7 @@ export function BookshelfTier({
     !isFullCoverRow && isPureCoverRow ? { gap: `${fullRowCoverGap}px` } : undefined;
 
   return (
-    <div key={`tier-${tierIndex}`} className="relative flex flex-col w-full">
+    <div className="relative flex flex-col w-full">
       <div className="absolute top-0 inset-x-0 h-16 shelf-scalloped-spotlights pointer-events-none z-10" />
 
       <div className="w-full bookcase-backboard relative min-h-40 pt-0 pb-0 flex flex-col justify-end">

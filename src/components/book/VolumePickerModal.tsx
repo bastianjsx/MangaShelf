@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import { useModalDialog } from '../../hooks/useModalDialog';
 
 interface VolumePickerModalProps {
   isOpen: boolean;
@@ -24,19 +25,8 @@ export function VolumePickerModal({
   const [volumeFilter, setVolumeFilter] = useState<'all' | 'owned' | 'read'>('all');
   const [extraCount, setExtraCount] = useState(0);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalDialog({ isOpen, onClose, dialogRef });
 
   const effectiveTotalVolumes = totalAvailableVolumes + extraCount;
 
@@ -104,9 +94,11 @@ export function VolumePickerModal({
         if (e.target === e.currentTarget) onClose();
       }}
       role="dialog"
+      aria-modal="true"
       aria-labelledby="volume-picker-title"
     >
       <div
+        ref={dialogRef}
         className="relative w-full max-w-lg max-h-[85vh] bg-[#FAF6F0] border border-[#E4DDD3] rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-150 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -211,7 +203,7 @@ export function VolumePickerModal({
           </div>
         </div>
 
-        <div className="flex-1 min-h-40 max-h-[55vh] overflow-y-auto px-4 sm:px-5 py-3 select-none scrollbar-thin [scrollbar-color:#CBBDAF_transparent]">
+        <div className="flex-1 min-h-40 max-h-[55vh] overflow-y-auto px-4 sm:px-5 py-3 select-none [scrollbar-width:thin] [scrollbar-color:#CBBDAF_transparent]">
           {displayedVolumes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <span className="text-xs font-medium text-[#8C8377] italic">

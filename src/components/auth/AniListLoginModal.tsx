@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import {
   getAniListClientId,
   initiateAniListLogin,
   setAniListToken,
+  fetchCurrentAniListUser,
 } from '../../services/anilistAuth';
+import { useModalDialog } from '../../hooks/useModalDialog';
 
 interface AniListLoginModalProps {
   isOpen: boolean;
@@ -21,25 +23,10 @@ export function AniListLoginModal({
   const [activeTab, setActiveTab] = useState<'oauth' | 'token'>('oauth');
   const [copiedRedirect, setCopiedRedirect] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isValidatingToken, setIsValidatingToken] = useState(false);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      document.body.style.overflow = 'hidden';
-      if (scrollbarWidth > 0) {
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
-      }
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
-      document.body.style.paddingRight = '';
-    };
-  }, [isOpen, onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalDialog({ isOpen, onClose, dialogRef });
 
   if (!isOpen) return null;
 
@@ -64,16 +51,26 @@ export function AniListLoginModal({
     initiateAniListLogin(cleanId);
   };
 
-  const handleDirectToken = (e: React.FormEvent) => {
+  const handleDirectToken = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = tokenInput.trim();
     if (!clean) {
       setError('Please paste a valid AniList access token.');
       return;
     }
-    setAniListToken(clean);
-    onDirectTokenSubmit?.(clean);
-    onClose();
+
+    setIsValidatingToken(true);
+    setError(null);
+    try {
+      await fetchCurrentAniListUser(clean);
+      setAniListToken(clean);
+      onDirectTokenSubmit?.(clean);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid AniList access token.');
+    } finally {
+      setIsValidatingToken(false);
+    }
   };
 
   return (
@@ -85,7 +82,10 @@ export function AniListLoginModal({
       role="dialog"
       aria-modal="true"
     >
-      <div className="relative w-full max-w-md bg-shell-bg border border-shell-border rounded-2xl shadow-[0_20px_45px_rgba(45,25,10,0.2)] p-5 sm:p-6 text-left flex flex-col gap-4 animate-in zoom-in-95 duration-150">
+      <div
+        ref={dialogRef}
+        className="relative w-full max-w-md bg-shell-bg border border-shell-border rounded-2xl shadow-[0_20px_45px_rgba(45,25,10,0.2)] p-5 sm:p-6 text-left flex flex-col gap-4 animate-in zoom-in-95 duration-150"
+      >
         <div className="flex items-center justify-between pb-3 border-b border-guide-line">
           <div className="flex items-center gap-2.5">
             <svg
@@ -269,9 +269,10 @@ export function AniListLoginModal({
 
             <button
               type="submit"
-              className="mt-1 h-10 px-4 rounded-xl bg-[#3B6B88] hover:bg-[#315B75] active:bg-[#284B62] text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-colors"
+              disabled={isValidatingToken}
+              className="mt-1 h-10 px-4 rounded-xl bg-[#3B6B88] hover:bg-[#315B75] active:bg-[#284B62] disabled:opacity-50 disabled:pointer-events-none text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-colors"
             >
-              Save & Authenticate
+              {isValidatingToken ? 'Validating Token...' : 'Save & Authenticate'}
             </button>
           </form>
         )}

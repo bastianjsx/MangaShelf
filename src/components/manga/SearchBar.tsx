@@ -116,7 +116,6 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
               setIsOpen(true);
             }
           }}
-          id="manga-search-input"
           placeholder="Search..."
           aria-label="Search"
           className="w-full h-9 pl-9.5 pr-8 rounded-full text-[12.5px] bg-white border border-pill-border text-text-primary placeholder:text-text-secondary/70 shadow-xs hover:border-plank-edge/70 focus:outline-none focus:border-plank-edge focus:ring-2 focus:ring-plank-edge/30 focus:bg-white transition-all"

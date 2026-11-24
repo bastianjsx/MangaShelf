@@ -1,10 +1,12 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import type { Book, BookStatus } from '../../types/book';
 import {
   getSpinePalette,
   getBookOwnedVolumes,
   getBookReadVolumes,
 } from '../../utils/spineUtils';
+import { STATUS_CONFIG } from '../../utils/statusConfig';
+import { useModalDialog } from '../../hooks/useModalDialog';
 import { VolumePickerModal } from './VolumePickerModal';
 
 interface BookDetailModalProps {
@@ -23,6 +25,9 @@ interface BookDetailModalProps {
   ) => void;
   onDeleteBook?: (bookId: string) => void;
 }
+
+const MAX_VOLUME = 9999;
+const MAX_CHAPTER = 9999;
 
 export function BookDetailModal({
   book,
@@ -53,7 +58,7 @@ export function BookDetailModal({
   }, [book.id, book.status, onUpdateStatus]);
 
   const handleUpdateVolumeProgress = (newVal: number) => {
-    const clamped = Math.max(0, newVal);
+    const clamped = Math.min(MAX_VOLUME, Math.max(0, newVal));
     if (clamped > 0) {
       handleAutoUpdateStatus();
     }
@@ -73,7 +78,10 @@ export function BookDetailModal({
   };
 
   const handleUpdateChapter = (newChapter: number | undefined) => {
-    const val = newChapter === undefined ? undefined : Math.max(0, newChapter);
+    const val =
+      newChapter === undefined
+        ? undefined
+        : Math.min(MAX_CHAPTER, Math.max(0, newChapter));
     if (typeof val === 'number' && val > 0) {
       handleAutoUpdateStatus();
     }
@@ -112,32 +120,8 @@ export function BookDetailModal({
     });
   };
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (isVolumePickerOpen) {
-          setIsVolumePickerOpen(false);
-        } else {
-          onClose();
-        }
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    const originalOverflow = document.body.style.overflow;
-    const originalPaddingRight = document.body.style.paddingRight;
-
-    document.body.style.overflow = 'hidden';
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = originalOverflow;
-      document.body.style.paddingRight = originalPaddingRight;
-    };
-  }, [onClose, isVolumePickerOpen]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalDialog({ isOpen: !isVolumePickerOpen, onClose, dialogRef });
 
   const addedDateStr = book.createdAt
     ? new Date(book.createdAt).toLocaleDateString('en-US', {
@@ -147,9 +131,7 @@ export function BookDetailModal({
       })
     : '';
 
-  const primaryCategories = Array.isArray(book.category)
-    ? book.category.filter(Boolean)
-    : [book.category || 'Uncategorized'];
+  const primaryCategories = book.category?.filter(Boolean) || [];
   const description = book.description?.trim() || '';
   const currentStatus: BookStatus = book.status || 'none';
   const hasImage = Boolean(book.coverUrl) && !imageError;
@@ -161,9 +143,13 @@ export function BookDetailModal({
         if (e.target === e.currentTarget) onClose();
       }}
       role="dialog"
+      aria-modal="true"
       aria-labelledby="book-detail-title"
     >
-      <div className="relative w-full max-w-3xl bg-shell-bg border border-shell-border rounded-2xl shadow-[0_24px_50px_rgba(45,25,10,0.22),0_4px_12px_rgba(0,0,0,0.08)] flex flex-col md:flex-row overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+      <div
+        ref={dialogRef}
+        className="relative w-full max-w-3xl bg-shell-bg border border-shell-border rounded-2xl shadow-[0_24px_50px_rgba(45,25,10,0.22),0_4px_12px_rgba(0,0,0,0.08)] flex flex-col md:flex-row overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+      >
         <button
           type="button"
           onClick={onClose}
@@ -281,10 +267,10 @@ export function BookDetailModal({
                   className="w-full h-8 pl-3 pr-8 rounded-lg text-xs font-medium bg-[#EFE6D8] text-[#5C4D3C] border border-pill-border cursor-pointer appearance-none focus:outline-none focus:border-plank-edge focus:ring-1 focus:ring-plank-edge/50 transition-colors"
                 >
                   <option value="none">No status</option>
-                  <option value="reading">Reading</option>
-                  <option value="finished">Finished</option>
-                  <option value="want-to-read">Want to read</option>
-                  <option value="on-hold">On hold</option>
+                  <option value="reading">{STATUS_CONFIG.reading.label}</option>
+                  <option value="finished">{STATUS_CONFIG.finished.label}</option>
+                  <option value="want-to-read">{STATUS_CONFIG['want-to-read'].label}</option>
+                  <option value="on-hold">{STATUS_CONFIG['on-hold'].label}</option>
                 </select>
                 <svg
                   className="w-3.5 h-3.5 text-[#5C4D3C] absolute right-2.5 pointer-events-none"
@@ -363,13 +349,13 @@ export function BookDetailModal({
                     <input
                       type="number"
                       min={0}
-                      max={9999}
+                      max={MAX_VOLUME}
                       value={volumeProgress}
                       onChange={(e) => {
                         const val =
                           e.target.value === ''
                             ? 0
-                            : parseInt(e.target.value, 10) || 0;
+                            : Math.min(MAX_VOLUME, Math.max(0, parseInt(e.target.value, 10) || 0));
                         handleUpdateVolumeProgress(val);
                       }}
                       className="flex-1 min-w-0 h-full text-center text-xs font-bold text-text-primary bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -378,7 +364,8 @@ export function BookDetailModal({
                     <button
                       type="button"
                       onClick={() => handleUpdateVolumeProgress(volumeProgress + 1)}
-                      className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-[#6E675F] hover:text-text-primary hover:bg-[#F0EAE1] transition-colors cursor-pointer text-sm font-bold select-none"
+                      disabled={volumeProgress >= MAX_VOLUME}
+                      className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-[#6E675F] hover:text-text-primary hover:bg-[#F0EAE1] disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer text-sm font-bold select-none"
                       title="Increase volume"
                       aria-label="Increase volume"
                     >
@@ -406,16 +393,15 @@ export function BookDetailModal({
                       −
                     </button>
                     <input
-                      id="book-chapter-input"
                       type="number"
                       min={0}
-                      max={9999}
+                      max={MAX_CHAPTER}
                       value={book.chapter ?? 0}
                       onChange={(e) => {
                         const val =
                           e.target.value === ''
                             ? undefined
-                            : Math.max(0, parseInt(e.target.value, 10) || 0);
+                            : Math.min(MAX_CHAPTER, Math.max(0, parseInt(e.target.value, 10) || 0));
                         handleUpdateChapter(val);
                       }}
                       className="flex-1 min-w-0 h-full text-center text-xs font-bold text-text-primary bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -424,7 +410,8 @@ export function BookDetailModal({
                     <button
                       type="button"
                       onClick={() => handleUpdateChapter((book.chapter ?? 0) + 1)}
-                      className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-[#6E675F] hover:text-text-primary hover:bg-[#F0EAE1] transition-colors cursor-pointer text-sm font-bold select-none"
+                      disabled={(book.chapter ?? 0) >= MAX_CHAPTER}
+                      className="w-6.5 h-6.5 rounded-md flex items-center justify-center text-[#6E675F] hover:text-text-primary hover:bg-[#F0EAE1] disabled:opacity-35 disabled:pointer-events-none transition-colors cursor-pointer text-sm font-bold select-none"
                       title="Increase chapter"
                       aria-label="Increase chapter"
                     >

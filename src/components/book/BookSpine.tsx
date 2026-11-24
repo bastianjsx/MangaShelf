@@ -42,8 +42,8 @@ export const BookSpine = memo(function BookSpine({
   const spineWidth = format.width;
 
   const inkColor = palette.isLight
-    ? (palette.titleColor && palette.titleColor !== '#18181B' && palette.titleColor !== '#1C1917' && palette.titleColor !== '#231F20' ? palette.titleColor : '#221E1B')
-    : (palette.titleColor && palette.titleColor !== '#FFFFFF' && palette.titleColor !== '#F8FAFC' ? palette.titleColor : '#F4EFE6');
+    ? (palette.titleColor || '#221E1B')
+    : (palette.titleColor || '#F4EFE6');
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
     onHoverBook?.(book, volumeNumber, e.currentTarget, titleIndex);
@@ -53,50 +53,9 @@ export const BookSpine = memo(function BookSpine({
     onLeaveBook?.();
   };
 
-  if (book.spineImageUrl && !volumeNumber) {
-    return (
-      <motion.article
-        role="button"
-        tabIndex={0}
-        onClick={handleClick}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onSelectBook?.(book);
-          }
-        }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        layout="position"
-        whileHover={{ y: -8, scale: 1.025 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 26 }}
-        className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 touch-manipulation"
-        style={{
-          width: `${spineWidth}px`,
-          height: `${format.height}px`,
-        }}
-        aria-label={`${book.title} (${volumeInfo.tooltipText})`}
-        title={onHoverBook ? undefined : book.title}
-      >
-        <div className="absolute -bottom-0.5 inset-x-0.5 h-1 bg-[#2d1204]/35 blur-[1px] rounded-full pointer-events-none z-0 shadow-[0_1.5px_3px_rgba(35,16,4,0.25)] transition-opacity duration-200 group-hover:opacity-20" />
-        <div className="w-full h-full rounded-t-xs rounded-b-[1px] relative overflow-hidden shadow-[1px_0_1.5px_rgba(20,8,2,0.18),0_1.5px_3.5px_rgba(25,12,3,0.15)]">
-          <img
-            src={book.spineImageUrl}
-            alt={`Spine of ${book.title}`}
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover object-center"
-          />
-          <div className="absolute inset-0 manga-spine-paper pointer-events-none z-10" />
-          <div className="manga-paper-grain" />
-        </div>
-      </motion.article>
-    );
-  }
-
   return (
-    <motion.article
-      role="button"
-      tabIndex={0}
+    <motion.button
+      type="button"
       onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -109,17 +68,15 @@ export const BookSpine = memo(function BookSpine({
       layout="position"
       whileHover={{ y: -8, scale: 1.025 }}
       transition={{ type: 'spring', stiffness: 420, damping: 26 }}
-      className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 touch-manipulation"
+      className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 touch-manipulation text-left p-0 border-0 bg-transparent block"
       style={{
         width: `${spineWidth}px`,
         height: `${format.height}px`,
       }}
       aria-label={`${book.title} (${volumeInfo.tooltipText})`}
-      title={onHoverBook ? undefined : book.title}
     >
       <div className="absolute -bottom-0.5 inset-x-0.5 h-1 bg-[#2d1204]/35 blur-[1px] rounded-full pointer-events-none z-0 shadow-[0_1.5px_3px_rgba(35,16,4,0.25)] transition-all duration-200 group-hover:opacity-20" />
 
-     
       <div
         className="w-full h-full rounded-t-xs rounded-b-none relative overflow-hidden flex flex-col items-center justify-between pt-2 pb-1.5 px-0.5 shadow-[1px_0_1.5px_rgba(20,8,2,0.18),0_1.5px_3.5px_rgba(25,12,3,0.15)] transition-all duration-200 group-hover:shadow-[0_6px_14px_rgba(25,12,3,0.26)]"
         style={{
@@ -156,6 +113,6 @@ export const BookSpine = memo(function BookSpine({
           </div>
         </div>
       </div>
-    </motion.article>
+    </motion.button>
   );
 });

@@ -1,4 +1,4 @@
-import type { Book, ShelfDisplayMode, SortOption, StatusFilter } from '../types/book.ts';
+import type { Book, BookStatus, ShelfDisplayMode, SortOption, StatusFilter } from '../types/book.ts';
 import {
   getSpinePalette,
   getSpineColorSortScore,
@@ -52,11 +52,17 @@ export function calculateStatusCounts(
     books.forEach((b) => {
       const owned = getBookOwnedVolumes(b);
       const readSet = new Set(getBookReadVolumes(b));
-      counts.all += owned.length;
-      owned.forEach((volNum) => {
-        const st = getVolumeStatus(b, volNum, readSet);
+      if (owned.length > 0) {
+        counts.all += owned.length;
+        owned.forEach((volNum) => {
+          const st = getVolumeStatus(b, volNum, readSet);
+          counts[st] = (counts[st] || 0) + 1;
+        });
+      } else {
+        counts.all += 1;
+        const st = (b.status && b.status !== 'none' ? b.status : 'want-to-read') as Exclude<BookStatus, 'none'>;
         counts[st] = (counts[st] || 0) + 1;
-      });
+      }
     });
     return counts;
   }
@@ -78,11 +84,8 @@ export function filterBooks(
 ): Book[] {
   const hasCategoryFilter = selectedCategories.length > 0;
   const selectedCategorySet = hasCategoryFilter ? new Set(selectedCategories) : null;
-  const seenIds = new Set<string>();
 
   return books.filter((book) => {
-    if (seenIds.has(book.id)) return false;
-
     if (hasCategoryFilter) {
       const bookCats = book.category || [];
       if (!bookCats.some((cat) => selectedCategorySet!.has(cat))) {
@@ -96,15 +99,14 @@ export function filterBooks(
         ? (() => {
             const owned = getBookOwnedVolumes(book);
             const readSet = new Set(getBookReadVolumes(book));
-            return owned.some((v) => getVolumeStatus(book, v, readSet) === selectedStatus);
+            if (owned.length > 0) {
+              return owned.some((v) => getVolumeStatus(book, v, readSet) === selectedStatus);
+            }
+            return book.status === selectedStatus;
           })()
         : book.status === selectedStatus);
 
-    if (matchesStatus) {
-      seenIds.add(book.id);
-      return true;
-    }
-    return false;
+    return matchesStatus;
   });
 }
 
@@ -140,7 +142,6 @@ export function sortBooks(books: Book[], sortBy: SortOption): Book[] {
       return withScores.map((item) => item.book);
     }
     case 'custom':
-      return list;
     default:
       return list;
   }
