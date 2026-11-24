@@ -1,4 +1,7 @@
 import { memo, useState } from 'react';
+import { motion } from 'motion/react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { type Book } from '../../types/book';
 import { getSpinePalette } from '../../utils/spineUtils';
 
@@ -10,7 +13,7 @@ interface BookCoverProps {
   onHoverBook?: (
     book: Book,
     volumeNumber: number | undefined,
-    rect: DOMRect,
+    element: HTMLElement,
     titleIndex?: number
   ) => void;
   onLeaveBook?: () => void;
@@ -18,7 +21,6 @@ interface BookCoverProps {
 }
 
 const MAX_TITLE_CHARS = 10;
-const BOOK_DRAG_MIME = 'application/x-bookshelf-book-id';
 
 function truncateTitle(title: string, maxChars = MAX_TITLE_CHARS): string {
   const trimmed = title.trim();
@@ -36,51 +38,22 @@ export const BookCover = memo(function BookCover({
   onReorderBooks,
 }: BookCoverProps) {
   const [imageError, setImageError] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleDragStart = (e: React.DragEvent) => {
-    if (!onReorderBooks) {
-      e.preventDefault();
-      return;
-    }
-    onLeaveBook?.();
-    setIsDragging(true);
-    e.dataTransfer.setData(BOOK_DRAG_MIME, book.id);
-    e.dataTransfer.effectAllowed = 'move';
-  };
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: book.id,
+    disabled: !onReorderBooks,
+  });
 
-  const handleDragEnd = () => {
-    setIsDragging(false);
-    setIsDragOver(false);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    if (!onReorderBooks) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (!isDragOver) {
-      setIsDragOver(true);
-    }
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setIsDragOver(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    if (!onReorderBooks) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-    setIsDragging(false);
-    const sourceId =
-      e.dataTransfer.getData(BOOK_DRAG_MIME) || e.dataTransfer.getData('text/plain');
-    if (sourceId && sourceId !== book.id) {
-      onReorderBooks(sourceId, book.id);
-    }
+  const sortableStyle: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition,
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -93,16 +66,14 @@ export const BookCover = memo(function BookCover({
   const volLabel = volumeNumber ? `Vol. ${volumeNumber}` : 'Vol. 1';
 
   return (
-    <article
-      role="button"
-      tabIndex={0}
+    <motion.article
+      ref={setNodeRef}
+      style={sortableStyle}
+      layout="position"
+      whileHover={isDragging ? undefined : { y: -4, scale: 1.02 }}
+      transition={{ type: 'spring', stiffness: 450, damping: 28 }}
       aria-label={`${book.title} (${volLabel})`}
-      draggable={Boolean(onReorderBooks)}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      {...(onReorderBooks ? attributes : { role: 'button', tabIndex: 0 })}
       onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -112,20 +83,20 @@ export const BookCover = memo(function BookCover({
       }}
       onMouseEnter={(e) => {
         if (!isDragging) {
-          onHoverBook?.(book, volumeNumber, e.currentTarget.getBoundingClientRect(), titleIndex);
+          onHoverBook?.(book, volumeNumber, e.currentTarget, titleIndex);
         }
       }}
       onMouseLeave={() => onLeaveBook?.()}
-      className={`shrink-0 w-25 h-37.5 aspect-2/3 relative select-none transition-all duration-200 focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 rounded-[3px] touch-manipulation ${
+      className={`shrink-0 w-25 h-37.5 aspect-2/3 relative select-none rounded-[3px] touch-manipulation focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 ${
         onReorderBooks ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${
         isDragging
-          ? 'opacity-35 scale-95 z-0'
-          : isDragOver
-            ? 'scale-105 z-40 ring-3 ring-[#8C5828] ring-offset-2 ring-offset-page-bg-start shadow-[0_12px_24px_rgba(45,25,10,0.35)]'
-            : 'z-10 group hover:z-30'
+          ? 'opacity-35 scale-95 z-40 shadow-2xl ring-2 ring-[#8C5828]'
+          : 'z-10 group hover:z-30'
       }`}
       title={onHoverBook ? undefined : `${book.title} (${volLabel})`}
+      {...attributes}
+      {...listeners}
     >
       <div className="absolute -bottom-0.5 inset-x-2 h-1 bg-[#3a1d08]/22 blur-[1px] rounded-full pointer-events-none z-0 shadow-[0_1px_2.5px_rgba(45,20,5,0.16)] transition-all duration-200 group-hover:opacity-20" />
 
@@ -140,7 +111,6 @@ export const BookCover = memo(function BookCover({
             decoding="async"
             referrerPolicy="no-referrer"
             draggable={false}
-            onDragStart={(e) => e.preventDefault()}
             onError={() => setImageError(true)}
             className="w-full h-full block object-cover rounded-[3px] pointer-events-none select-none"
           />
@@ -189,6 +159,6 @@ export const BookCover = memo(function BookCover({
           </div>
         )}
       </div>
-    </article>
+    </motion.article>
   );
 });

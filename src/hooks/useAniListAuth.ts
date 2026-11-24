@@ -9,8 +9,13 @@ import {
   initiateAniListLogin,
   fetchCurrentAniListUser,
   fetchUserMangaCollection,
-} from '../services/anilistAuth';
-import type { Book } from '../types/book';
+  getLastAniListSyncTime,
+  setLastAniListSyncTime,
+} from '../services/anilistAuth.ts';
+import type { Book } from '../types/book.ts';
+
+export const AUTO_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1 day (24 hours)
+const PERIODIC_CHECK_INTERVAL_MS = 60 * 60 * 1000; // Check hourly if browser tab remains open
 
 interface UseAniListAuthOptions {
   onSyncManga?: (remoteBooks: Book[]) => void;
@@ -37,6 +42,7 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
           currentToken || undefined
         );
         onSyncManga?.(remoteBooks);
+        setLastAniListSyncTime();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to sync with AniList.';
         console.error('Failed to sync collection from AniList:', err);
@@ -65,7 +71,9 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
           const viewer = await fetchCurrentAniListUser(token);
           if (!cancelled) {
             setUser(viewer);
-            if (redirectToken) {
+            const lastSync = getLastAniListSyncTime();
+            const isSyncDue = !lastSync || Date.now() - lastSync >= AUTO_SYNC_INTERVAL_MS;
+            if (redirectToken || isSyncDue) {
               await syncMangaRef.current(viewer.id, token);
             }
           }
@@ -85,6 +93,21 @@ export function useAniListAuth({ onSyncManga }: UseAniListAuthOptions = {}) {
       cancelled = true;
     };
   }, []);
+
+  // Periodic check if browser tab remains open across days
+  useEffect(() => {
+    if (!user) return;
+
+    const intervalId = setInterval(() => {
+      const lastSync = getLastAniListSyncTime();
+      const isDue = !lastSync || Date.now() - lastSync >= AUTO_SYNC_INTERVAL_MS;
+      if (isDue && !isSyncing) {
+        handleSyncManga(user.id);
+      }
+    }, PERIODIC_CHECK_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [user, isSyncing, handleSyncManga]);
 
   const handleLoginClick = useCallback(() => {
     const clientId = getAniListClientId();

@@ -95,6 +95,10 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
         <input
           type="text"
           value={query}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           onChange={(e) => {
             const val = e.target.value;
             setQuery(val);
@@ -115,7 +119,7 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
           id="manga-search-input"
           placeholder="Search..."
           aria-label="Search"
-          className="w-full h-9 pl-9.5 pr-8 rounded-full text-[12.5px] bg-white border border-pill-border text-text-primary placeholder:text-text-secondary/70 shadow-xs hover:border-plank-edge/70 focus:outline-none focus:border-plank-edge focus:ring-2 focus:ring-plank-edge/30 transition-all"
+          className="w-full h-9 pl-9.5 pr-8 rounded-full text-[12.5px] bg-white border border-pill-border text-text-primary placeholder:text-text-secondary/70 shadow-xs hover:border-plank-edge/70 focus:outline-none focus:border-plank-edge focus:ring-2 focus:ring-plank-edge/30 focus:bg-white transition-all"
         />
 
         {loading ? (
@@ -218,7 +222,7 @@ export function SearchBar({ onAddBook, existingBookIds }: SearchBarProps) {
                           type="button"
                           onClick={() => handleAdd(book)}
                           disabled={addingIds.has(book.id)}
-                          className="h-7 px-2.5 bg-[#5DB8CD] hover:bg-[#4FA7BC] disabled:opacity-50 text-white text-[11px] font-medium rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
+                          className="h-7 px-2.5 bg-[#3B6B88] hover:bg-[#315B75] active:bg-[#284B62] disabled:opacity-50 text-white text-[11px] font-medium rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
                         >
                           {addingIds.has(book.id) ? (
                             <span>Adding...</span>

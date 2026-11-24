@@ -1,11 +1,11 @@
-import type { Book, ShelfDisplayMode, SortOption, StatusFilter } from '../../../types/book.ts';
+import type { Book, ShelfDisplayMode, SortOption, StatusFilter } from '../types/book.ts';
 import {
   getSpinePalette,
   getSpineColorSortScore,
   getBookOwnedVolumes,
   getBookReadVolumes,
   getVolumeStatus,
-} from '../../../utils/spineUtils.ts';
+} from './spineUtils.ts';
 
 const EXCLUDED_CATEGORIES = new Set(['manga', 'light novel']);
 const titleCollator = new Intl.Collator(undefined, { sensitivity: 'base' });

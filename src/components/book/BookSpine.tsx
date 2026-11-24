@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { motion } from 'motion/react';
 import { type Book } from '../../types/book';
 import {
   getSpinePalette,
@@ -15,7 +16,7 @@ interface BookSpineProps {
   onHoverBook?: (
     book: Book,
     volumeNumber: number | undefined,
-    rect: DOMRect,
+    element: HTMLElement,
     titleIndex?: number
   ) => void;
   onLeaveBook?: () => void;
@@ -45,7 +46,7 @@ export const BookSpine = memo(function BookSpine({
     : (palette.titleColor && palette.titleColor !== '#FFFFFF' && palette.titleColor !== '#F8FAFC' ? palette.titleColor : '#F4EFE6');
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) => {
-    onHoverBook?.(book, volumeNumber, e.currentTarget.getBoundingClientRect(), titleIndex);
+    onHoverBook?.(book, volumeNumber, e.currentTarget, titleIndex);
   };
 
   const handleMouseLeave = () => {
@@ -54,7 +55,7 @@ export const BookSpine = memo(function BookSpine({
 
   if (book.spineImageUrl && !volumeNumber) {
     return (
-      <article
+      <motion.article
         role="button"
         tabIndex={0}
         onClick={handleClick}
@@ -66,7 +67,10 @@ export const BookSpine = memo(function BookSpine({
         }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 transition-transform duration-200 ease-out hover:-translate-y-2 hover:z-30 touch-manipulation"
+        layout="position"
+        whileHover={{ y: -8, scale: 1.025 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 26 }}
+        className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 touch-manipulation"
         style={{
           width: `${spineWidth}px`,
           height: `${format.height}px`,
@@ -85,12 +89,12 @@ export const BookSpine = memo(function BookSpine({
           <div className="absolute inset-0 manga-spine-paper pointer-events-none z-10" />
           <div className="manga-paper-grain" />
         </div>
-      </article>
+      </motion.article>
     );
   }
 
   return (
-    <article
+    <motion.article
       role="button"
       tabIndex={0}
       onClick={handleClick}
@@ -102,7 +106,10 @@ export const BookSpine = memo(function BookSpine({
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 transition-all duration-200 ease-out hover:-translate-y-2 hover:scale-[1.02] hover:z-30 touch-manipulation"
+      layout="position"
+      whileHover={{ y: -8, scale: 1.025 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 26 }}
+      className="shrink-0 relative z-10 select-none cursor-pointer group focus-visible:outline-2 focus-visible:outline-plank-edge focus-visible:outline-offset-2 touch-manipulation"
       style={{
         width: `${spineWidth}px`,
         height: `${format.height}px`,
@@ -149,6 +156,6 @@ export const BookSpine = memo(function BookSpine({
           </div>
         </div>
       </div>
-    </article>
+    </motion.article>
   );
 });

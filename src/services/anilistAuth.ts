@@ -1,6 +1,6 @@
-import type { Book, BookStatus } from '../types/book';
-import { transformAniListMediaToBook, type AniListMedia } from './anilist';
-import { requestAniListGraphQL, AniListAuthError } from './anilistClient';
+import type { Book, BookStatus } from '../types/book.ts';
+import { transformAniListMediaToBook, type AniListMedia } from './anilist.ts';
+import { requestAniListGraphQL, AniListAuthError } from './anilistClient.ts';
 
 export interface AniListUser {
   id: number;
@@ -14,6 +14,26 @@ export interface AniListUser {
 const TOKEN_STORAGE_KEY = 'anilist_oauth_token';
 const USER_STORAGE_KEY = 'anilist_oauth_user';
 const CLIENT_ID_STORAGE_KEY = 'anilist_client_id';
+export const LAST_SYNC_STORAGE_KEY = 'anilist_last_full_sync_timestamp';
+
+export function getLastAniListSyncTime(): number | null {
+  try {
+    const raw = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
+    if (!raw) return null;
+    const time = parseInt(raw, 10);
+    return isNaN(time) ? null : time;
+  } catch {
+    return null;
+  }
+}
+
+export function setLastAniListSyncTime(timestamp: number = Date.now()): void {
+  try {
+    localStorage.setItem(LAST_SYNC_STORAGE_KEY, String(timestamp));
+  } catch {
+    // ignore
+  }
+}
 
 export const ANILIST_STATUS_TO_BOOK_STATUS: Record<string, BookStatus> = {
   CURRENT: 'reading',
@@ -70,6 +90,7 @@ export function clearAniListAuth(): void {
   try {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem(LAST_SYNC_STORAGE_KEY);
   } catch {
     // ignore
   }
@@ -146,39 +167,13 @@ export async function fetchCurrentAniListUser(token: string): Promise<AniListUse
   }
 }
 
-interface AniListEntryMedia {
-  id: number;
-  title?: {
-    english?: string;
-    romaji?: string;
-  };
-  description?: string;
-  coverImage?: {
-    large?: string;
-    medium?: string;
-    color?: string;
-  };
-  staff?: {
-    nodes?: { name?: { full?: string } }[];
-  };
-  volumes?: number;
-  startDate?: {
-    year?: number;
-    month?: number;
-    day?: number;
-  };
-  genres?: string[];
-  siteUrl?: string;
-  format?: string;
-}
-
 interface AniListListEntry {
   id: number;
   mediaId: number;
   status: string;
   progress?: number;
   progressVolumes?: number;
-  media?: AniListEntryMedia;
+  media?: AniListMedia;
 }
 
 interface AniListMediaList {
@@ -249,7 +244,7 @@ export async function fetchUserMangaCollection(userId: number, token?: string): 
       if (media.format && media.format !== 'MANGA') continue;
       seenMediaIds.add(media.id);
 
-      const baseBook = transformAniListMediaToBook(media as unknown as AniListMedia);
+      const baseBook = transformAniListMediaToBook(media);
       const status: BookStatus = ANILIST_STATUS_TO_BOOK_STATUS[entry.status] || 'none';
       const readVolumeCount = entry.progressVolumes || 0;
       const readVolumes =

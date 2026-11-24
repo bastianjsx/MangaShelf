@@ -7,24 +7,6 @@ const STORAGE_KEY = 'bookshelf_reading_tracker_books';
 const SHELF_MODE_STORAGE_KEY = 'bookshelf_shelf_display_mode';
 const SORT_BY_STORAGE_KEY = 'bookshelf_sort_by';
 
-const DEFAULT_BLUE_BOX: Book = {
-  id: 'blue-box-ao-no-hako',
-  title: 'Blue Box',
-  author: 'Kouji Miura',
-  category: ['Romance', 'Sports'],
-  volumesOwned: 27,
-  volume: 27,
-  ownedVolumes: Array.from({ length: 27 }, (_, i) => i + 1),
-  totalVolumes: 27,
-  coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80',
-  spineColor: '#368EAA',
-  releaseDate: 'Apr 8, 2021',
-  createdAt: '2021-04-08T00:00:00.000Z',
-  description:
-    'Taiki Inomata is on the boys badminton team at sports powerhouse Eimei Junior and Senior High. He is in love with Chinatsu Kano, a girl a year above him on the girls basketball team.',
-  status: 'reading',
-};
-
 function getInitialSortBy(): SortOption {
   try {
     const saved = localStorage.getItem(SORT_BY_STORAGE_KEY);
@@ -62,13 +44,21 @@ function getInitialBooks(): Book[] {
 
     // If localStorage contained saved data (even an empty array []), respect it.
     if (parsed !== null) {
-      return parsed;
+      // Clean up legacy placeholder book if present
+      const cleaned = parsed.filter((book) => book.id !== 'blue-box-ao-no-hako');
+      if (cleaned.length !== parsed.length) {
+        try {
+          localStorage.setItem(STORAGE_KEY, serializeBooks(cleaned));
+        } catch {
+          // ignore write errors during initialization
+        }
+      }
+      return cleaned;
     }
   } catch (err) {
     console.error('Failed to load books from localStorage:', err);
   }
-  // Only first-time visitors with no storage key receive the initial sample book.
-  return [DEFAULT_BLUE_BOX];
+  return [];
 }
 
 function mergeRemoteWithLocal(local: Book, remote: Book): Book {

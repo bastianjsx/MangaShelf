@@ -19,8 +19,8 @@ export function VolumePickerModal({
   hasUnknownTotalVolumes = false,
   onSave,
 }: VolumePickerModalProps) {
-  const [tempOwnedVolumes, setTempOwnedVolumes] = useState<number[]>(initialOwnedVolumes);
-  const [tempReadVolumes, setTempReadVolumes] = useState<number[]>(initialReadVolumes);
+  const [tempOwnedVolumes, setTempOwnedVolumes] = useState<Set<number>>(() => new Set(initialOwnedVolumes));
+  const [tempReadVolumes, setTempReadVolumes] = useState<Set<number>>(() => new Set(initialReadVolumes));
   const [volumeFilter, setVolumeFilter] = useState<'all' | 'owned' | 'read'>('all');
   const [extraCount, setExtraCount] = useState(0);
 
@@ -42,43 +42,53 @@ export function VolumePickerModal({
 
   const displayedVolumes = useMemo(() => {
     if (volumeFilter === 'owned') {
-      return [...tempOwnedVolumes].sort((a, b) => a - b);
+      return Array.from(tempOwnedVolumes).sort((a, b) => a - b);
     }
     if (volumeFilter === 'read') {
-      return [...tempReadVolumes].sort((a, b) => a - b);
+      return Array.from(tempReadVolumes).sort((a, b) => a - b);
     }
     return Array.from({ length: effectiveTotalVolumes }, (_, i) => i + 1);
   }, [volumeFilter, tempOwnedVolumes, tempReadVolumes, effectiveTotalVolumes]);
 
   const handleToggleVolumeState = (volNum: number) => {
-    const isRead = tempReadVolumes.includes(volNum);
-    const isOwned = tempOwnedVolumes.includes(volNum);
+    const isRead = tempReadVolumes.has(volNum);
+    const isOwned = tempOwnedVolumes.has(volNum);
 
     if (isRead) {
-      setTempReadVolumes((prev) => prev.filter((v) => v !== volNum));
-      setTempOwnedVolumes((prev) => prev.filter((v) => v !== volNum));
+      setTempReadVolumes((prev) => {
+        const next = new Set(prev);
+        next.delete(volNum);
+        return next;
+      });
+      setTempOwnedVolumes((prev) => {
+        const next = new Set(prev);
+        next.delete(volNum);
+        return next;
+      });
     } else if (isOwned) {
-      setTempReadVolumes((prev) => [...prev, volNum].sort((a, b) => a - b));
+      setTempReadVolumes((prev) => new Set(prev).add(volNum));
     } else {
-      setTempOwnedVolumes((prev) => [...prev, volNum].sort((a, b) => a - b));
+      setTempOwnedVolumes((prev) => new Set(prev).add(volNum));
     }
   };
 
   const handleSelectAllOwned = () => {
-    const allVols = Array.from({ length: effectiveTotalVolumes }, (_, i) => i + 1);
+    const allVols = new Set<number>();
+    for (let i = 1; i <= effectiveTotalVolumes; i++) {
+      allVols.add(i);
+    }
     setTempOwnedVolumes(allVols);
   };
 
   const handleClearVolumes = () => {
-    setTempOwnedVolumes([]);
-    setTempReadVolumes([]);
+    setTempOwnedVolumes(new Set());
+    setTempReadVolumes(new Set());
   };
 
   const handleSave = () => {
-    const sortedOwned = [...tempOwnedVolumes].sort((a, b) => a - b);
-    const ownedSet = new Set(sortedOwned);
-    const sortedRead = [...tempReadVolumes]
-      .filter((v) => ownedSet.has(v))
+    const sortedOwned = Array.from(tempOwnedVolumes).sort((a, b) => a - b);
+    const sortedRead = Array.from(tempReadVolumes)
+      .filter((v) => tempOwnedVolumes.has(v))
       .sort((a, b) => a - b);
 
     onSave(sortedOwned, sortedRead);
@@ -155,12 +165,12 @@ export function VolumePickerModal({
                   ? 'bg-white text-[#2A2622] font-bold shadow-2xs'
                   : 'text-[#6E675F] hover:text-[#2A2622] font-medium'
               }`}
-              title={`Filter to owned volumes only (${tempOwnedVolumes.length})`}
+              title={`Filter to owned volumes only (${tempOwnedVolumes.size})`}
             >
               <span className="w-2 h-2 rounded-full bg-[#A84300] shrink-0" />
               <span>Owned</span>
               <span className="font-bold text-[#A84300]">
-                {tempOwnedVolumes.length}
+                {tempOwnedVolumes.size}
               </span>
             </button>
 
@@ -172,12 +182,12 @@ export function VolumePickerModal({
                   ? 'bg-white text-[#2A2622] font-bold shadow-2xs'
                   : 'text-[#6E675F] hover:text-[#2A2622] font-medium'
               }`}
-              title={`Filter to read volumes only (${tempReadVolumes.length})`}
+              title={`Filter to read volumes only (${tempReadVolumes.size})`}
             >
               <span className="w-2 h-2 rounded-full bg-[#047857] shrink-0" />
               <span>Read</span>
               <span className="font-bold text-[#047857]">
-                {tempReadVolumes.length}
+                {tempReadVolumes.size}
               </span>
             </button>
           </div>
@@ -219,8 +229,8 @@ export function VolumePickerModal({
             <>
               <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 pb-2">
                 {displayedVolumes.map((volNum) => {
-                  const isRead = tempReadVolumes.includes(volNum);
-                  const isOwned = tempOwnedVolumes.includes(volNum);
+                  const isRead = tempReadVolumes.has(volNum);
+                  const isOwned = tempOwnedVolumes.has(volNum);
                   const statusLabel = isRead ? 'Read' : isOwned ? 'Owned' : 'Unread';
 
                   const tileClass = isRead

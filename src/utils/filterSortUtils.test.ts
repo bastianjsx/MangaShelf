@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { filterBooks, sortBooks, calculateStatusCounts } from './filterSortUtils.ts';
-import type { Book } from '../../../types/book.ts';
+import type { Book } from '../types/book.ts';
 
 const SAMPLE_BOOKS: Book[] = [
   {

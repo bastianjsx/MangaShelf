@@ -1,4 +1,5 @@
 import type { StatusFilter } from '../../types/book';
+import { STATUS_OPTIONS } from '../../utils/statusConfig';
 
 export type { StatusFilter };
 
@@ -7,14 +8,6 @@ interface StatusBarProps {
   onSelectStatus: (status: StatusFilter) => void;
   statusCounts?: Record<string, number>;
 }
-
-const STATUS_OPTIONS: { id: StatusFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'reading', label: 'Reading' },
-  { id: 'finished', label: 'Finished' },
-  { id: 'want-to-read', label: 'Want to Read' },
-  { id: 'on-hold', label: 'On Hold' },
-];
 
 export function StatusBar({
   activeStatus,

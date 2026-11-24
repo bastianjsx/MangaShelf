@@ -6,6 +6,7 @@ import { CategoryDropdown } from './CategoryDropdown';
 import { StatusBar } from './StatusBar';
 import { SearchBar } from '../manga/SearchBar';
 import { useDismiss } from '../../hooks/useDismiss';
+import { STATUS_LABEL_MAP } from '../../utils/statusConfig';
 
 interface HeaderProps {
   categories: string[];
@@ -31,7 +32,6 @@ interface HeaderProps {
   user: AniListUser | null;
   onLoginClick: () => void;
   onLogout: () => void;
-  onSync: () => void;
   isSyncing?: boolean;
 
   totalBooksCount: number;
@@ -40,12 +40,10 @@ interface HeaderProps {
 function AccountDropdown({
   user,
   onLogout,
-  onSync,
   isSyncing = false,
 }: {
   user: AniListUser;
   onLogout: () => void;
-  onSync: () => void;
   isSyncing?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -73,7 +71,7 @@ function AccountDropdown({
             className="w-6 h-6 rounded-full object-cover border border-pill-border"
           />
         ) : (
-          <div className="w-6 h-6 rounded-full bg-[#02A9FF] text-white flex items-center justify-center text-[11px] font-bold">
+          <div className="w-6 h-6 rounded-full bg-[#3B6B88] text-white flex items-center justify-center text-[11px] font-bold">
             {user.name.charAt(0).toUpperCase()}
           </div>
         )}
@@ -99,49 +97,21 @@ function AccountDropdown({
         <div
           role="menu"
           aria-label="User account actions"
-          className="absolute right-0 top-full mt-1.5 w-60 rounded-xl bg-[#FFFDF9] border border-shell-border shadow-[0_20px_48px_rgba(45,25,10,0.28),0_4px_12px_rgba(0,0,0,0.1)] p-2 z-100 animate-in fade-in zoom-in-95 duration-100"
+          className="absolute right-0 top-full mt-1.5 w-48 rounded-xl bg-[#FFFDF9] border border-shell-border shadow-[0_20px_48px_rgba(45,25,10,0.28),0_4px_12px_rgba(0,0,0,0.1)] p-2 z-100 animate-in fade-in zoom-in-95 duration-100"
         >
           <div className="px-2.5 py-2 border-b border-guide-line mb-1">
             <div className="text-[12px] font-bold text-text-primary truncate">
               {user.name}
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-text-secondary mt-0.5">
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-              <span>{isSyncing ? 'Syncing library...' : 'Synced 2 min ago'}</span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                }`}
+              />
+              <span>{isSyncing ? 'Syncing...' : 'Sync every day'}</span>
             </div>
           </div>
-
-          <button
-            type="button"
-            role="menuitem"
-            disabled={isSyncing}
-            onClick={() => {
-              onSync();
-            }}
-            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-medium text-text-primary hover:bg-pill-hover-bg/80 transition-colors cursor-pointer select-none text-left focus-visible:outline-none focus-visible:bg-pill-hover-bg"
-          >
-            <svg
-              className={`w-4 h-4 text-[#02A9FF] shrink-0 ${
-                isSyncing ? 'animate-spin' : ''
-              }`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-            </svg>
-            <div className="flex flex-col">
-              <span>{isSyncing ? 'Syncing...' : 'Sync Library'}</span>
-              <span className="text-[10px] text-text-secondary">
-                Two-way sync with AniList
-              </span>
-            </div>
-          </button>
-
-          <div className="h-px bg-guide-line my-1 w-full" />
 
           <button
             type="button"
@@ -173,13 +143,6 @@ function AccountDropdown({
   );
 }
 
-const STATUS_LABEL_MAP: Record<Exclude<StatusFilter, 'all' | 'none'>, string> = {
-  reading: 'Reading',
-  finished: 'Finished',
-  'want-to-read': 'Want to Read',
-  'on-hold': 'On Hold',
-};
-
 export function Header({
   categories,
   selectedCategories,
@@ -199,7 +162,6 @@ export function Header({
   user,
   onLoginClick,
   onLogout,
-  onSync,
   isSyncing = false,
   totalBooksCount,
 }: HeaderProps) {
@@ -224,25 +186,17 @@ export function Header({
             <button
               type="button"
               onClick={onLoginClick}
-              className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-[9px] text-[12px] font-medium leading-none cursor-pointer select-none transition-all duration-150 bg-pill-bg border border-pill-border text-pill-text hover:bg-pill-hover-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C5828] focus-visible:ring-offset-1 shrink-0 shadow-xs"
-              title="Log in with AniList for two-way sync"
+              className="inline-flex items-center justify-center h-9 px-3.5 rounded-[9px] text-[12px] font-medium leading-none cursor-pointer select-none transition-all duration-150 bg-pill-bg border border-pill-border text-pill-text hover:bg-pill-hover-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8C5828] focus-visible:ring-offset-1 shrink-0 shadow-xs"
+              title="Sign in with AniList for two-way sync"
             >
-              <svg
-                className="w-4 h-4 text-[#02A9FF]"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M6.361 2.843 0 21.156h6.362l1.693-4.864h5.666l1.692 4.864h6.362L15.414 2.843H6.361zm2.71 8.878 1.83-5.26 1.832 5.26H9.071z" />
-              </svg>
-              <span className="text-[11.5px] text-text-primary font-medium hidden sm:inline">
-                Login with AniList
+              <span className="text-[11.5px] text-text-primary font-medium">
+                Sign In
               </span>
             </button>
           ) : (
             <AccountDropdown
               user={user}
               onLogout={onLogout}
-              onSync={onSync}
               isSyncing={isSyncing}
             />
           )}

@@ -6,7 +6,7 @@ import { BookDetailModal } from './components/book/BookDetailModal';
 import { AniListLoginModal } from './components/auth/AniListLoginModal';
 import { useAniListAuth } from './hooks/useAniListAuth';
 import { useBookshelfStorage } from './hooks/useBookshelfStorage';
-import { useBookshelfFilterSort } from './features/bookshelf/hooks/useBookshelfFilterSort';
+import { useBookshelfFilterSort } from './hooks/useBookshelfFilterSort';
 
 export function App() {
   const {
@@ -34,7 +34,6 @@ export function App() {
     handleLoginClick,
     handleLogout,
     handleDirectTokenSubmit,
-    handleSyncManga,
   } = useAniListAuth({
     onSyncManga: syncRemoteBooks,
   });
@@ -88,12 +87,6 @@ export function App() {
     [deleteBookFromStorage]
   );
 
-  const handleSync = useCallback(() => {
-    if (user) {
-      handleSyncManga(user.id);
-    }
-  }, [user, handleSyncManga]);
-
   const handleSelectBook = useCallback((b: Book) => {
     setSelectedBookId(b.id);
   }, []);
@@ -123,7 +116,6 @@ export function App() {
           user={user}
           onLoginClick={handleLoginClick}
           onLogout={handleLogout}
-          onSync={handleSync}
           isSyncing={isSyncing}
           totalBooksCount={books.length}
         />

@@ -10,8 +10,6 @@
 
   --color-text-primary: #2C221E;
   --color-text-secondary: #564538;
-  --color-home-link: #B89F86;
-  --color-home-link-hover: #8C735D;
 
   --color-pill-bg: #F1E6D3;
   --color-pill-border: #CDB89A;
@@ -33,8 +31,6 @@
 
   --color-spine-brown: #8B5A2B;
   --color-spine-tan: #D9BF93;
-  --color-spine-purple: #8E4A9E;
-  --color-spine-red-orange: #D8512B;
 
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -297,4 +293,16 @@ body::before {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Prevent browser autofill from tinting inputs blueish */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: var(--color-text-primary, #2c221e) !important;
+  caret-color: var(--color-text-primary, #2c221e) !important;
+  transition: background-color 5000s ease-in-out 0s;
 }

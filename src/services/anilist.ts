@@ -1,5 +1,5 @@
-import type { Book } from '../types/book';
-import { requestAniListGraphQL } from './anilistClient';
+import type { Book } from '../types/book.ts';
+import { requestAniListGraphQL } from './anilistClient.ts';
 
 const SEARCH_MANGA_QUERY = `
 query ($search: String, $perPage: Int) {
@@ -72,6 +72,7 @@ export interface AniListMedia {
   };
   genres?: string[];
   siteUrl?: string;
+  format?: string;
 }
 
 export function extractAniListAuthor(staff?: { nodes?: { name?: { full?: string } }[] }): string {

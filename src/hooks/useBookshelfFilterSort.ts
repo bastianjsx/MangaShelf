@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import type { Book, ShelfDisplayMode, SortOption, StatusFilter } from '../../../types/book';
+import type { Book, ShelfDisplayMode, SortOption, StatusFilter } from '../types/book';
 import {
   extractCategories,
   calculateCategoryCounts,
