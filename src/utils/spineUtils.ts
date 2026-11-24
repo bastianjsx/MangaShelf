@@ -15,7 +15,7 @@ export interface SpineFormat {
 }
 
 export const DEFAULT_SPINE_FORMAT: SpineFormat = {
-  width: 24,
+  width: 36,
   height: 146,
   formatLabel: 'MANGA',
 };

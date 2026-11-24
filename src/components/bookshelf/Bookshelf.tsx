@@ -79,7 +79,7 @@ export function Bookshelf({
 
   const usableWidth = useMemo(() => {
     if (containerWidth > 0) {
-      const chromeWidth = containerWidth >= 768 ? 44 : 32;
+      const chromeWidth = containerWidth >= 768 ? 52 : 36;
       return Math.max(280, containerWidth - chromeWidth);
     }
     return 960;

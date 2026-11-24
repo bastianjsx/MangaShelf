@@ -59,7 +59,7 @@ export function BookshelfTier({
         <div className="absolute inset-y-0 left-0 w-2 bg-linear-to-r from-[#2d1204]/20 via-[#2d1204]/06 to-transparent pointer-events-none z-15" />
         <div className="absolute inset-y-0 right-0 w-2 bg-linear-to-l from-[#2d1204]/20 via-[#2d1204]/06 to-transparent pointer-events-none z-15" />
 
-        <div className="w-full relative z-20 pt-4 px-2 md:px-3 mb-0 overflow-hidden">
+        <div className="w-full relative z-20 pt-4 pl-5 md:pl-7 pr-3 md:pr-5 mb-0 overflow-hidden">
           <div
             className={`flex flex-nowrap items-end w-full ${rowJustifyClass}`}
             style={rowGapStyle}
